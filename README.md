@@ -99,6 +99,30 @@ flowchart TD
 
  ### Terminal Output Sample
  ![alt text](<CleanShot 2026-04-12 at 22.31.47@2x.png>)
+
+ ### High-Energy Pop
+ ![alt text](<CleanShot 2026-04-12 at 22.45.02@2x.png>)
+
+ ### Chill Lofi
+ ![alt text](<CleanShot 2026-04-12 at 22.46.23@2x.png>)
+
+ ### Deep Intense Rock
+ ![alt text](<CleanShot 2026-04-12 at 22.46.45@2x.png>)
+
+ ### Contradictory Energy + Mood (Edge)
+ ![alt text](<CleanShot 2026-04-12 at 22.47.07@2x.png>)
+
+ ### Ghost Genre (Edge)
+ ![alt text](<CleanShot 2026-04-12 at 22.48.39@2x.png>)
+
+ ### Silent Preferences (Edge)
+ ![alt text](<CleanShot 2026-04-12 at 22.49.02@2x.png>)
+
+ ### Out-of-Range Energy (Edge)
+ ![alt text](<CleanShot 2026-04-12 at 22.50.59@2x.png>)
+
+ ### Genre Dominance (Edge)
+ ![alt text](<CleanShot 2026-04-12 at 22.52.26@2x.png>)
  
 ---
 
