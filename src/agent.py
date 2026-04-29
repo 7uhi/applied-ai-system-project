@@ -173,12 +173,72 @@ def _validate_prefs(prefs: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Turn 0 — Plan
+# ---------------------------------------------------------------------------
+
+_PLAN_SYSTEM_PROMPT = (
+    "You are a music intent analyst. "
+    "Read the user's request and output ONLY valid JSON with these keys: "
+    "likely_energy (one of: low / moderate / high), "
+    "likely_genre_family (short label), "
+    "likely_mood (short label), "
+    "ambiguities (list of strings — what is unclear), "
+    "reasoning (one sentence explaining your interpretation). "
+    "Do not call any tools. Do not include any text outside the JSON object."
+)
+
+
+def plan_request(user_text: str, client: anthropic.Anthropic) -> dict:
+    """
+    Turn 0: Claude briefly reasons about the user's request before extraction.
+    Returns a dict with keys: likely_energy, likely_genre_family, likely_mood,
+    ambiguities, reasoning. Falls back to an empty dict on parse failure.
+    """
+    _logger.info("Turn 0: planning intent for: '%s'", user_text)
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=256,
+        system=_PLAN_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_text}],
+    )
+
+    raw_text = response.content[0].text.strip()
+    try:
+        plan = json.loads(raw_text)
+    except json.JSONDecodeError:
+        _logger.warning("Turn 0 response was not valid JSON — skipping plan context.")
+        plan = {}
+
+    _log_event("plan", {
+        "user_input": user_text,
+        "tokens_in": response.usage.input_tokens,
+        "tokens_out": response.usage.output_tokens,
+        "plan": plan,
+    })
+    return plan
+
+
+# ---------------------------------------------------------------------------
 # Turn 1 — Extract
 # ---------------------------------------------------------------------------
 
-def extract_user_prefs(user_text: str, client: anthropic.Anthropic) -> dict:
-    """Call Claude to extract a structured UserProfile dict from free text."""
+def extract_user_prefs(user_text: str, client: anthropic.Anthropic, plan: dict | None = None) -> dict:
+    """Call Claude to extract a structured UserProfile dict from free text.
+
+    If a Turn 0 plan dict is provided, it is prepended to the extraction
+    prompt so Claude's reasoning is grounded in its own prior analysis.
+    """
     _logger.info("Turn 1: extracting preferences from: '%s'", user_text)
+
+    if plan:
+        plan_context = (
+            f"Your prior analysis of this request: {json.dumps(plan)}\n\n"
+            f"User request: {user_text}"
+        )
+        user_message = plan_context
+    else:
+        user_message = user_text
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
@@ -186,7 +246,7 @@ def extract_user_prefs(user_text: str, client: anthropic.Anthropic) -> dict:
         system=_SYSTEM_PROMPT,
         tools=[_EXTRACT_TOOL],
         tool_choice={"type": "tool", "name": "set_user_prefs"},
-        messages=[{"role": "user", "content": user_text}],
+        messages=[{"role": "user", "content": user_message}],
     )
 
     tool_block = next(
@@ -309,7 +369,7 @@ def run_agent(
     songs_path: str = "data/songs.csv",
     k: int = 5,
 ) -> None:
-    """Full agentic pipeline: extract → RAG retrieve → score → reflect → print."""
+    """Full agentic pipeline: plan → extract → RAG retrieve → score → reflect → print."""
 
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
@@ -328,14 +388,30 @@ def run_agent(
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Turn 1 — extract structured preferences
+    # Turn 0 — plan: Claude reasons about the request before extracting
     try:
-        user_prefs = extract_user_prefs(user_text, client)
+        plan = plan_request(user_text, client)
+    except Exception as e:
+        _logger.warning("Turn 0 planning failed (%s) — proceeding without plan context.", e)
+        plan = {}
+
+    if plan:
+        print(f"\nTurn 0 — Planning:")
+        print(f"  Energy:  {plan.get('likely_energy', '?')}")
+        print(f"  Genre:   {plan.get('likely_genre_family', '?')}")
+        print(f"  Mood:    {plan.get('likely_mood', '?')}")
+        if plan.get("ambiguities"):
+            print(f"  Unclear: {'; '.join(plan['ambiguities'])}")
+        print(f"  Notes:   {plan.get('reasoning', '')}")
+
+    # Turn 1 — extract structured preferences (informed by Turn 0 plan)
+    try:
+        user_prefs = extract_user_prefs(user_text, client, plan=plan)
     except Exception as e:
         print(f"Error during preference extraction: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\nExtracted preferences:")
+    print(f"\nTurn 1 — Extracted preferences:")
     print(f"  Genre: {user_prefs['favorite_genre']}  |  Mood: {user_prefs['favorite_mood']}")
     print(f"  Energy: {user_prefs['target_energy']:.2f}  |  Acousticness: {user_prefs['target_acousticness']:.2f}")
 

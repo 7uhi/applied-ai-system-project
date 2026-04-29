@@ -13,6 +13,7 @@ import pytest
 from src.agent import (
     _validate_prefs,
     extract_user_prefs,
+    plan_request,
     reflect_and_refine,
 )
 
@@ -87,6 +88,39 @@ def test_validate_preserves_valid_values():
     assert result["favorite_genre"] == "lofi"
     assert result["target_energy"] == pytest.approx(0.42)
     assert result["likes_acoustic"] is True
+
+
+# ---------------------------------------------------------------------------
+# plan_request (Turn 0)
+# ---------------------------------------------------------------------------
+
+def test_plan_request_returns_dict():
+    plan_json = json.dumps({
+        "likely_energy": "low",
+        "likely_genre_family": "acoustic/folk",
+        "likely_mood": "relaxed",
+        "ambiguities": ["genre unclear"],
+        "reasoning": "User said 'calm' and 'acoustic'.",
+    })
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_text_response(plan_json)
+
+    with patch("src.agent._log_event"):
+        result = plan_request("something calm and acoustic", mock_client)
+
+    assert result["likely_energy"] == "low"
+    assert result["likely_genre_family"] == "acoustic/folk"
+    assert isinstance(result["ambiguities"], list)
+
+
+def test_plan_request_falls_back_on_invalid_json():
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_text_response("Not JSON at all.")
+
+    with patch("src.agent._log_event"):
+        result = plan_request("anything", mock_client)
+
+    assert result == {}
 
 
 # ---------------------------------------------------------------------------

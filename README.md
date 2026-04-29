@@ -16,7 +16,7 @@ This repository extends GrooveMatch 1.0 with two fully-integrated AI features:
 
 1. **Retrieval-Augmented Generation (RAG):** The song catalog was expanded from 18 to 150 songs across 22 genres. Each song is pre-embedded as a descriptive sentence using `all-MiniLM-L6-v2`. When a user makes a request, their extracted preferences are embedded and matched semantically via cosine similarity, narrowing 150 songs to 30 candidates before the scoring formula runs.
 
-2. **Agentic Workflow (Claude API):** A two-turn Claude agent handles the user interaction. In Turn 1, Claude extracts a structured `UserProfile` from free-text using tool use (guaranteed structured output). In Turn 2, Claude evaluates whether the top-5 recommendations actually match what the user asked for, and proposes a single-field refinement if not. All API calls are logged as JSON Lines for auditability.
+2. **Agentic Workflow (Claude API):** A three-turn Claude agent handles the user interaction. In Turn 0, Claude briefly reasons about the request — identifying likely energy level, genre family, ambiguities, and intent — before any structured extraction happens. In Turn 1, that reasoning is passed as context into a tool-use extraction call that produces a guaranteed-structured `UserProfile`. In Turn 2, Claude evaluates whether the top-5 recommendations match the original request and proposes a single-field refinement if not. All API calls are logged as JSON Lines for auditability.
 
 The result: you can ask for *"something mellow to study to, acoustic and not too slow"* and get back ranked recommendations with explanations — without touching a config file.
 
@@ -340,19 +340,24 @@ A plain "respond only with JSON" prompt occasionally produces prose headers, mar
 | Rule-based scorer preserved | Transparent, testable, no API needed | Still only scores genre + mood + energy; ignores acousticness/danceability |
 | RAG pre-filters to 30 candidates | Full profile used for retrieval; semantic matching | Embeddings must be rebuilt when catalog changes |
 | Reflection hard-capped at 1 retry | Prevents infinite refinement loops | Claude may give up after one attempt even if a better refinement exists |
+| Turn 0 planning step | Reasoning is observable; informs extraction | Adds one extra API call per request |
 | Logs written to `logs/agent.log` | Full auditability; easy to inspect runs | Grows unbounded; no log rotation |
 
 ---
 
 ## Testing Summary
 
-**16 out of 16 tests pass (`pytest`). No API key required.**
+**18 out of 18 unit tests pass (`pytest`). 8 out of 8 eval cases pass (`python scripts/eval.py`). No API key required for either.**
+
+### Unit tests (`pytest`)
 
 ```
 tests/test_agent.py::test_validate_clamps_energy_above_1                    PASSED
 tests/test_agent.py::test_validate_clamps_energy_below_0                    PASSED
 tests/test_agent.py::test_validate_fills_missing_keys                       PASSED
 tests/test_agent.py::test_validate_preserves_valid_values                   PASSED
+tests/test_agent.py::test_plan_request_returns_dict                         PASSED
+tests/test_agent.py::test_plan_request_falls_back_on_invalid_json           PASSED
 tests/test_agent.py::test_extract_returns_required_keys                     PASSED
 tests/test_agent.py::test_extract_raises_if_no_tool_use                     PASSED
 tests/test_agent.py::test_reflect_pass_returns_original_results             PASSED
@@ -365,6 +370,25 @@ tests/test_recommender.py::test_score_song_energy_only_gives_low_confidence PASS
 tests/test_recommender.py::test_score_song_ghost_genre_caps_confidence      PASSED
 tests/test_recommender.py::test_recommend_songs_returns_top_k_sorted_by_score PASSED
 tests/test_recommender.py::test_recommend_songs_k_larger_than_catalog_returns_all PASSED
+```
+
+### Evaluation harness (`python scripts/eval.py`)
+
+Runs 8 predefined profiles through `recommend_songs` and checks named assertions — no API key needed.
+
+```
+GrooveMatch Eval — 8 test cases
+────────────────────────────────────────────────────────────
+PASS  High-Energy Pop             top=pop/intense  confidence=100%  score=3.99
+PASS  Chill Lofi                  top=lofi/focused  confidence=100%  score=4.00
+PASS  Deep Intense Rock           top=rock/intense  confidence=100%  score=4.00
+PASS  [EDGE] Ghost Genre          confidence=50%  (capped — 'ska' not in catalog)
+PASS  [EDGE] Out-of-Range Energy  min_score=2.93  (no negative scores after clamping)
+PASS  [EDGE] Genre Dominance      top=pop  energy_gap=0.68  (limitation documented)
+PASS  Results are sorted          ✓
+PASS  k truncation                len=3  ✓
+────────────────────────────────────────────────────────────
+8/8 passed   |   avg top-1 confidence: 88%
 ```
 
 ### Confidence Scoring
@@ -437,7 +461,8 @@ applied-ai-system-final/
 ├── logs/
 │   └── agent.log              # JSON Lines log of all Claude API calls (git-ignored)
 ├── scripts/
-│   └── build_embeddings.py    # One-time embedding generation
+│   ├── build_embeddings.py    # One-time embedding generation
+│   └── eval.py                # Evaluation harness: 8 predefined test cases, pass/fail + confidence summary
 ├── src/
 │   ├── agent.py               # Claude extraction + reflection agentic loop
 │   ├── agent_main.py          # CLI entry point for agent mode
@@ -445,7 +470,7 @@ applied-ai-system-final/
 │   ├── recommender.py         # Song/UserProfile dataclasses + scoring logic
 │   └── retriever.py           # RAG: embedding + cosine similarity retrieval
 ├── tests/
-│   ├── test_agent.py          # 9 mocked unit tests for the agent
+│   ├── test_agent.py          # 11 mocked unit tests for the agent (incl. Turn 0 plan_request)
 │   └── test_recommender.py    # 7 unit tests: OOP interface + confidence scoring edge cases
 ├── model_card.md              # GrooveMatch 1.0 model card
 ├── reflection.md              # Profile-pair analysis from original project
