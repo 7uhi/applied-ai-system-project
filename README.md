@@ -2,6 +2,16 @@
 
 **GrooveMatch** is a music recommendation system that combines a semantic retrieval layer (RAG) with an agentic Claude workflow to recommend songs from natural-language descriptions. Instead of filling in a form, you type what you want to hear — the system figures out the rest.
 
+**GitHub:** https://github.com/7uhi/applied-ai-system-project
+
+---
+
+## Walkthrough
+
+> **Loom video:** *(paste your Loom URL here after recording)*
+
+The walkthrough demonstrates: end-to-end runs for 3 inputs, Turn 0 planning output, RAG candidate count, Turn 2 reflection (including a refine case), confidence scores, and the evaluation harness edge-case results.
+
 ---
 
 ## Origin: GrooveMatch 1.0 (Modules 1–3)
