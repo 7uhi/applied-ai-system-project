@@ -17,3 +17,135 @@ id,title,artist,genre,mood,energy,tempo_bpm,valence,danceability,acousticness
 16,Neon Sermon,Hollow Static,darkwave,melancholic,0.58,96,0.21,0.64,0.30
 17,Harvest Moon Dance,The Fiddle Co.,bluegrass,joyful,0.72,148,0.90,0.76,0.82
 18,Sacred Geometry,Theta Room,meditation,peaceful,0.15,55,0.68,0.28,0.97
+19,Sugar Rush,Bright Lights,pop,happy,0.78,120,0.88,0.84,0.12
+20,Dancing Alone,Solo Hearts,pop,melancholic,0.65,108,0.42,0.72,0.20
+21,Golden Hour,Saffron Sky,pop,romantic,0.71,112,0.79,0.76,0.25
+22,Neon Daydream,Prism Wave,pop,moody,0.68,115,0.55,0.80,0.15
+23,Summer Static,Circuit Beach,pop,happy,0.85,125,0.90,0.88,0.08
+24,Paper Hearts,Ivory Lane,pop,romantic,0.60,100,0.72,0.65,0.30
+25,Ultraviolet,Pulse City,pop,intense,0.89,135,0.65,0.86,0.06
+26,Quiet Storm,The Velvet Hush,pop,melancholic,0.55,95,0.38,0.62,0.35
+27,Rain Puddles,Cassette Dreams,lofi,relaxed,0.30,70,0.65,0.50,0.88
+28,Coffee and Clouds,Mellow Studio,lofi,peaceful,0.25,65,0.70,0.45,0.90
+29,Ember Glow,Soft Static,lofi,chill,0.38,75,0.58,0.55,0.80
+30,Dusty Pages,Attic Record,lofi,nostalgic,0.32,72,0.62,0.52,0.84
+31,Lunchbreak,Paper Cup Beats,lofi,focused,0.45,82,0.60,0.63,0.75
+32,Late Night Sketch,Pencil Lo,lofi,focused,0.42,80,0.55,0.58,0.78
+33,Harbor Fog,Driftwood Sessions,lofi,relaxed,0.28,68,0.68,0.48,0.85
+34,Stargazer,Rooftop Lofi,lofi,peaceful,0.35,74,0.72,0.52,0.82
+35,Study Session,Brainfog Beats,lofi,focused,0.40,78,0.58,0.60,0.77
+36,Broken Signal,Static Pulse,rock,moody,0.75,130,0.42,0.60,0.15
+37,Thunder Road,Iron Wagon,rock,intense,0.88,145,0.52,0.65,0.12
+38,Glass Canyon,Fault Lines,rock,angry,0.92,155,0.35,0.62,0.08
+39,Midnight Reckoning,Voltage Band,rock,moody,0.80,138,0.40,0.68,0.10
+40,Restless World,Concrete Sky,rock,intense,0.85,148,0.48,0.64,0.14
+41,Desert Song,Wandering Amp,rock,nostalgic,0.65,110,0.60,0.55,0.30
+42,Landslide Dreams,Echo Chamber,rock,melancholic,0.62,105,0.38,0.52,0.22
+43,City Grid,Block Theory,hip-hop,intense,0.82,90,0.60,0.85,0.10
+44,Late Pass,The Cipher,hip-hop,moody,0.70,85,0.45,0.80,0.15
+45,Corner Store,Neighborhood Sound,hip-hop,nostalgic,0.65,88,0.62,0.75,0.20
+46,Golden Chain,Plat Status,hip-hop,happy,0.78,95,0.72,0.82,0.12
+47,Sideshow,Hustle Collective,hip-hop,intense,0.85,92,0.55,0.88,0.08
+48,Quiet Hours,Introspect MC,hip-hop,melancholic,0.60,80,0.38,0.70,0.25
+49,Crown Heights,Borough Sound,hip-hop,focused,0.72,88,0.65,0.78,0.18
+50,New Era,Fresh Chapter,hip-hop,joyful,0.80,95,0.78,0.85,0.10
+51,Binary Sunset,Modular Mind,electronic,moody,0.75,130,0.45,0.85,0.05
+52,Deep Current,Sub Ocean,electronic,focused,0.70,125,0.50,0.80,0.08
+53,Voltage Love,Waveform,electronic,romantic,0.68,120,0.65,0.78,0.10
+54,Circuit Breaker,Raw Hz,electronic,intense,0.92,145,0.40,0.90,0.03
+55,Frequency Dream,Sine Wave,electronic,chill,0.55,110,0.58,0.72,0.12
+56,Satellite Rain,Orbit Sound,electronic,melancholic,0.62,118,0.35,0.75,0.08
+57,Morning Algorithm,Daybreak Digital,electronic,happy,0.78,128,0.80,0.85,0.05
+58,Window Seat,Sparrow & Bell,indie pop,peaceful,0.58,104,0.75,0.68,0.45
+59,Soft Landing,The Pastel Club,indie pop,romantic,0.62,108,0.80,0.72,0.40
+60,Pinwheel,Carousel Kids,indie pop,joyful,0.72,115,0.85,0.78,0.32
+61,Silver Thread,Paper Boat,indie pop,melancholic,0.55,100,0.45,0.65,0.50
+62,Daydream Map,Pastel Routes,indie pop,happy,0.70,112,0.82,0.75,0.38
+63,Wildflower Year,Open Road Duo,indie pop,nostalgic,0.65,106,0.70,0.68,0.42
+64,Blue Hour Trio,Blue Hour Trio,jazz,melancholic,0.32,85,0.48,0.50,0.88
+65,Smoke and Mirrors,Velvet Quartet,jazz,moody,0.40,92,0.42,0.55,0.82
+66,Morning Pages,Cafe Ensemble,jazz,relaxed,0.35,88,0.72,0.52,0.90
+67,Late Night Changes,Rhythm Parlor,jazz,romantic,0.42,95,0.65,0.58,0.85
+68,Rooftop Sessions,Sky High Jazz,jazz,joyful,0.55,105,0.80,0.65,0.78
+69,Two AM Standard,The Night Cats,jazz,nostalgic,0.38,90,0.55,0.52,0.87
+70,Porch Light,The Farmhouse Trio,folk,nostalgic,0.35,72,0.78,0.50,0.94
+71,Old Country Road,Hollow Branches,folk,relaxed,0.32,68,0.72,0.45,0.96
+72,River and Rain,Mossy Stone Duo,folk,peaceful,0.28,65,0.80,0.42,0.95
+73,Breadcrumb Trail,Wandering Notes,indie folk,nostalgic,0.45,80,0.68,0.55,0.88
+74,Canopy Song,Forest Floor,indie folk,peaceful,0.38,74,0.75,0.48,0.92
+75,Hometown Hymn,Prairie Echo,folk,relaxed,0.30,70,0.82,0.46,0.95
+76,Amber Field,The Harvest Singers,indie folk,joyful,0.55,88,0.85,0.60,0.87
+77,Nocturne in Blue,Silverwood Piano,classical,melancholic,0.22,60,0.38,0.30,0.98
+78,Allegro Vivace,Chamber Collective,classical,joyful,0.65,144,0.78,0.45,0.96
+79,Adagio for Two,Ivory Strings,classical,romantic,0.18,52,0.62,0.25,0.98
+80,Storm Sonata,Grand Horizons,classical,intense,0.70,135,0.40,0.38,0.95
+81,Pastoral Suite,Meadow Orchestra,classical,peaceful,0.25,70,0.78,0.32,0.97
+82,Waltz in Minor,Midnight Keys,classical,nostalgic,0.40,115,0.55,0.55,0.96
+83,Floating Gardens,Drift Collective,ambient,peaceful,0.20,55,0.70,0.35,0.95
+84,Ocean Protocol,Deep Horizon,ambient,relaxed,0.25,60,0.65,0.38,0.92
+85,Thermostat,Room Temperature,ambient,focused,0.30,65,0.55,0.40,0.90
+86,Cloud Archive,Vapor State,ambient,melancholic,0.22,58,0.42,0.32,0.94
+87,Signal Space,Empty Skies,ambient,moody,0.28,62,0.48,0.36,0.91
+88,Backroad Summer,Dusty Boot Band,country,happy,0.72,108,0.85,0.72,0.78
+89,Honky Tonk Heaven,Sawdust Floor,country,joyful,0.78,115,0.88,0.78,0.70
+90,Blue Ridge Sunset,Mountain & Sky,country,nostalgic,0.52,92,0.72,0.60,0.82
+91,Tailgate Hymn,The Pickup Band,country,relaxed,0.58,98,0.80,0.65,0.75
+92,Island Sunrise,Coral Riddim,reggae,happy,0.62,82,0.88,0.72,0.65
+93,Easy Tide,The Irie Collective,reggae,peaceful,0.45,75,0.80,0.65,0.72
+94,Stepping Roots,Foundation Sound,reggae,focused,0.55,78,0.72,0.68,0.68
+95,Babylon Falls,Roots Uprising,reggae,intense,0.72,88,0.60,0.75,0.60
+96,One Love Song,Unity Band,reggae,romantic,0.52,80,0.85,0.68,0.70
+97,Velvet Thunder,The Groove Ministry,soul,intense,0.78,100,0.68,0.80,0.35
+98,Slow Burn,Sapphire Lane,r&b,romantic,0.60,90,0.72,0.72,0.42
+99,Midnight Gospel,Church of Soul,soul,melancholic,0.55,85,0.52,0.68,0.48
+100,Honey and Heat,Caramel Sound,r&b,happy,0.75,98,0.82,0.80,0.38
+101,Garden State of Mind,The Sunday Band,soul,peaceful,0.48,82,0.78,0.65,0.55
+102,Crimson Sky,Deep Soul Project,soul,nostalgic,0.52,88,0.62,0.70,0.45
+103,Late Bloom,Orchid R&B,r&b,romantic,0.65,94,0.78,0.75,0.40
+104,Golden Ratio,Soul Mathematics,soul,joyful,0.72,96,0.85,0.78,0.38
+105,Neon Phantom,Shadow Arcade,synthwave,moody,0.78,118,0.45,0.78,0.18
+106,Chrome Future,Digital Past,synthwave,nostalgic,0.72,110,0.55,0.75,0.20
+107,Retrograde,Starline Express,synthwave,intense,0.88,130,0.50,0.85,0.10
+108,Laser Highway,Velocity Synth,synthwave,happy,0.82,125,0.75,0.82,0.12
+109,After Hours Glow,Late Night Module,synthwave,romantic,0.65,105,0.65,0.72,0.22
+110,Siege Engine,Iron Machine,metal,angry,0.95,165,0.25,0.58,0.05
+111,Void Walker,The Abyss Ensemble,metal,intense,0.92,160,0.20,0.55,0.08
+112,Fracture Point,Titans Fist,metal,angry,0.98,175,0.15,0.52,0.04
+113,Last Stand,Iron Citadel,metal,intense,0.90,155,0.28,0.60,0.06
+114,Ipanema Evening,Samba Verde,bossa nova,romantic,0.42,100,0.78,0.65,0.85
+115,Cafe Copacabana,Rio Breeze,bossa nova,relaxed,0.38,95,0.80,0.60,0.88
+116,Summer Bossa,Golden Quartet,bossa nova,happy,0.52,108,0.85,0.68,0.82
+117,Saudade,Melancholy Shore,bossa nova,melancholic,0.35,90,0.55,0.58,0.88
+118,Obsidian Hours,Black Mirror Ensemble,darkwave,melancholic,0.62,100,0.18,0.68,0.28
+119,Cathedral Rain,The Shadowlands,darkwave,moody,0.55,92,0.22,0.62,0.32
+120,Fever Dream,Pale Noir,darkwave,intense,0.75,112,0.28,0.72,0.22
+121,Creekbed Stomp,The Backporch Five,bluegrass,joyful,0.80,155,0.88,0.78,0.88
+122,Old Pine Ridge,Hollow Ground Band,bluegrass,nostalgic,0.65,138,0.78,0.68,0.90
+123,Reel and Shine,Mountain Strings,bluegrass,joyful,0.75,148,0.85,0.75,0.86
+124,Breath Cycle,Stillwater Sound,meditation,peaceful,0.12,50,0.72,0.22,0.98
+125,Inner Horizon,Third Eye Studio,meditation,peaceful,0.18,55,0.68,0.25,0.97
+126,Forest Temple,Ancient Grove,meditation,focused,0.22,60,0.65,0.30,0.96
+127,Dark Money,Phantom Trap,trap,moody,0.80,70,0.38,0.85,0.08
+128,Crown Me,Sovereign Beats,trap,intense,0.88,75,0.52,0.88,0.05
+129,Night Watch,Thermal Dark,trap,focused,0.72,68,0.42,0.80,0.10
+130,Drip Season,Liquid Gold Prod,trap,happy,0.82,73,0.68,0.85,0.06
+131,Iceberg,Cold Current,trap,intense,0.85,72,0.35,0.82,0.07
+132,Rooftop Party,Urban Glow,pop,joyful,0.88,128,0.88,0.85,0.10
+133,Moonbeam,Lunar Drift,ambient,peaceful,0.18,52,0.75,0.28,0.96
+134,Bounce Theory,Party Circuit,electronic,joyful,0.90,138,0.82,0.92,0.04
+135,River Folk,Wandering Current,folk,relaxed,0.28,68,0.76,0.44,0.95
+136,Pressure Drop,Island Current,reggae,chill,0.48,78,0.75,0.65,0.70
+137,Piano Elegy,Grey Keys,classical,melancholic,0.20,58,0.32,0.28,0.97
+138,Drum Machine Love,Beat Mechanics,hip-hop,romantic,0.72,88,0.68,0.78,0.15
+139,Twilight Pines,Dusk & Timber,indie folk,melancholic,0.40,76,0.50,0.52,0.90
+140,Street Poet,Open Mic Collective,soul,focused,0.60,90,0.62,0.70,0.42
+141,Euphoria Wave,Sunset Surf,pop,happy,0.82,118,0.90,0.82,0.14
+142,Autumn Sketch,Falling Notes,lofi,melancholic,0.35,72,0.45,0.50,0.82
+143,Metal Rain,Forged Steel,metal,angry,0.94,168,0.22,0.55,0.05
+144,Groove Embassy,Soul Dispatch,r&b,joyful,0.78,98,0.85,0.82,0.35
+145,Cathedral Jazz,Arched Ceiling,jazz,peaceful,0.30,82,0.68,0.48,0.88
+146,Midnight Protocol,Dark Frequency,darkwave,moody,0.68,104,0.25,0.70,0.25
+147,Mountain Pass,The Summit,bluegrass,intense,0.82,158,0.75,0.72,0.85
+148,Citadel,Synthwork,synthwave,intense,0.90,132,0.48,0.88,0.08
+149,Desert Drift,Nomad Sound,ambient,moody,0.32,64,0.40,0.38,0.92
+150,Love Algorithm,Data Romance,electronic,romantic,0.62,112,0.75,0.72,0.12

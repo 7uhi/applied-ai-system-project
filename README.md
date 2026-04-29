@@ -1,306 +1,428 @@
-# 🎵 Music Recommender Simulation
+# GrooveMatch — AI-Powered Music Recommender
 
-## Project Summary
-
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+**GrooveMatch** is a music recommendation system that combines a semantic retrieval layer (RAG) with an agentic Claude workflow to recommend songs from natural-language descriptions. Instead of filling in a form, you type what you want to hear — the system figures out the rest.
 
 ---
 
-## How The System Works
+## Origin: GrooveMatch 1.0 (Modules 1–3)
 
-### What data each Song and UserProfile store
-
-Each `Song` stores both categorical and numeric features:
-
-- **Categorical:** `id`, `title`, `artist`, `genre`, `mood`
-- **Numeric:** `energy` (0–1), `tempo_bpm`, `valence` (0–1), `danceability` (0–1), `acousticness` (0–1)
-
-Each `UserProfile` stores the user's taste targets:
-
-- **Categorical preferences:** `favorite_genre`, `favorite_mood`
-- **Numeric targets:** `target_energy`, `target_tempo_bpm`, `target_valence`, `target_danceability`, `target_acousticness`
-- **Convenience flag:** `likes_acoustic`
+The original project, **GrooveMatch 1.0**, was a rule-based music recommender built during the Codepath AI110 course (Modules 1–3). It scored each song against a hand-coded user preference profile using three rules: genre match (+2.0 points), mood match (+1.0 point), and energy proximity (0–1.0 continuous). It demonstrated how even a simple algorithm surfaces meaningful recommendations — and how a single poorly-weighted rule (the genre bonus) can dominate all other signals. The system worked correctly but required developers to hardcode user preferences as Python dicts.
 
 ---
 
-### Algorithm Recipe
+## What This Project Does
 
-For every song in the catalog, the system computes a score using three rules applied in sequence:
+This repository extends GrooveMatch 1.0 with two fully-integrated AI features:
 
-| Rule | Points awarded |
-|---|---|
-| `song.genre == favorite_genre` | **+2.0** (fixed bonus) |
-| `song.mood == favorite_mood` | **+1.0** (fixed bonus) |
-| Energy similarity | **+0.0 to +1.0** — calculated as `1.0 - abs(song.energy - target_energy)` |
-| **Maximum possible score** | **4.0** |
+1. **Retrieval-Augmented Generation (RAG):** The song catalog was expanded from 18 to 150 songs across 22 genres. Each song is pre-embedded as a descriptive sentence using `all-MiniLM-L6-v2`. When a user makes a request, their extracted preferences are embedded and matched semantically via cosine similarity, narrowing 150 songs to 30 candidates before the scoring formula runs.
 
-The energy rule is continuous, not binary. A perfect energy match gives +1.0. A difference of 0.5 gives +0.5. A difference of 1.0 gives 0.0. This means two songs that both match genre and mood are separated entirely by how close their energy is to the user's target.
+2. **Agentic Workflow (Claude API):** A two-turn Claude agent handles the user interaction. In Turn 1, Claude extracts a structured `UserProfile` from free-text using tool use (guaranteed structured output). In Turn 2, Claude evaluates whether the top-5 recommendations actually match what the user asked for, and proposes a single-field refinement if not. All API calls are logged as JSON Lines for auditability.
 
-After every song is scored, the list is sorted by score descending and the top `k` results are returned (default `k = 5`).
+The result: you can ask for *"something mellow to study to, acoustic and not too slow"* and get back ranked recommendations with explanations — without touching a config file.
 
 ---
 
-### Potential Biases
-
-- **Genre over-prioritization.** A +2.0 genre bonus is twice the mood bonus. A lofi song in the wrong mood will almost always outrank a perfectly mood-matched song from another genre. A jazz track tagged "focused" will consistently lose to a lofi track tagged "chill" for a user who wants focused lofi — which is the opposite of what the user actually needs in that moment.
-
-- **Small catalog amplifies genre imbalance.** The catalog has only 3 lofi songs, 2 pop songs, and 1 song each for most other genres. A user whose favorite genre is underrepresented gets 3 candidates at most, regardless of how many songs would suit their mood or energy.
-
-- **Energy is the only numeric signal.** Tempo, valence, danceability, and acousticness are loaded but never scored. Two songs can have identical scores while sounding very different — for example, a slow acoustic ballad and a fast electronic track could tie if they share genre, mood, and energy level.
-
-- **No diversity.** The algorithm always returns the closest matches. It will never surface a surprising but enjoyable song outside the user's stated preferences, which is a pattern real recommenders work hard to counteract.
-
-### Data Flow
+## Architecture
 
 ```mermaid
 flowchart TD
-    A([User Preferences\nfavorite_genre · favorite_mood · target_energy])
-    B([songs.csv])
+    U([Human User\nTypes natural language request])
+    T([Tests\npytest — human reviews pass/fail])
 
-    B --> C[load_songs\nParse each row into a song dict]
-    C --> D[scored = empty list]
-    A --> D
+    subgraph Agent ["Claude Agent · src/agent.py"]
+        A1["Turn 1 — Extract\nClaude converts free text → UserProfile\nvia tool_use (structured output)"]
+        A2["Turn 2 — Reflect\nClaude evaluates top-5 results\nvs. the original request"]
+        A3{Verdict}
+        A4["Refine once\nAdjust 1 field, re-run retrieval"]
+    end
 
-    D --> E{For each song\nin catalog}
+    subgraph RAG ["RAG Retriever · src/retriever.py"]
+        R1["Embed profile text\nall-MiniLM-L6-v2"]
+        R2["Cosine similarity\nagainst 150 precomputed vectors"]
+        R3["Top-30 semantic candidates"]
+    end
 
-    E --> F[score = 0.0]
+    subgraph Scorer ["Rule-Based Scorer · src/recommender.py"]
+        S1["score_song()\ngenre +2 · mood +1 · energy 0–1"]
+        S2["Top-5 ranked with explanations"]
+    end
 
-    F --> G{song.genre ==\nfavorite_genre?}
-    G -- Yes --> H[score += 2.0]
-    G -- No  --> I[no change]
+    subgraph Catalog ["Song Catalog · data/"]
+        C1["songs.csv — 150 songs\n22 genres, 12 moods"]
+        C2["embeddings.npy — 150×384 matrix\nprecomputed, git-ignored"]
+    end
 
-    H --> J{song.mood ==\nfavorite_mood?}
-    I --> J
+    subgraph Logging ["Logger · logs/agent.log"]
+        L1["JSON Lines\ntimestamp · profile · RAG hits\nreflection verdict · final results"]
+    end
 
-    J -- Yes --> K[score += 1.0]
-    J -- No  --> L[no change]
-
-    K --> M["energy_sim = 1.0 − |song.energy − target_energy|\nscore += energy_sim  ← 0.0 to 1.0"]
-    L --> M
-
-    M --> N[Build explanation string\nbased on which rules fired]
-    N --> O[Append  song · score · explanation\nto scored list]
-
-    O --> E
-
-    E -- All songs processed --> P[Sort scored list\nby score descending]
-    P --> Q[Slice top K entries]
-    Q --> R([Output\nTitle — Score: X.XX\nBecause: explanation])
+    U -->|free text| A1
+    A1 -->|UserProfile dict| R1
+    C1 --> R2
+    C2 --> R2
+    R1 --> R2
+    R2 --> R3
+    R3 --> S1
+    S1 --> S2
+    S2 --> A2
+    A2 --> A3
+    A3 -->|pass| Output([Final Recommendations\nprinted to terminal])
+    A3 -->|refine| A4
+    A4 -->|adjusted profile| R1
+    A1 --> L1
+    A2 --> L1
+    T -->|mocked Claude + fixture embeddings| Agent
+    T -->|2-song fixture| Scorer
+    Output --> U
 ```
 
- ### Terminal Output Sample
- ![alt text](<CleanShot 2026-04-12 at 22.31.47@2x.png>)
+**How data moves through the system:**
 
- ### High-Energy Pop
- ![alt text](<CleanShot 2026-04-12 at 22.45.02@2x.png>)
+1. The user types a natural-language music request.
+2. Claude (Turn 1) calls the `set_user_prefs` tool to extract structured preferences (genre, mood, energy, tempo, valence, danceability, acousticness).
+3. The retriever converts those preferences into an embeddable sentence, encodes it with `all-MiniLM-L6-v2`, and finds the 30 most semantically similar songs via cosine similarity.
+4. The rule-based scorer ranks those 30 candidates and returns the top 5 with explanations.
+5. Claude (Turn 2) reads the results and the original request, decides if they match, and either approves or proposes one refinement. If refined, steps 3–4 repeat once.
+6. Every Claude call is appended to `logs/agent.log` as a JSON record.
 
- ### Chill Lofi
- ![alt text](<CleanShot 2026-04-12 at 22.46.23@2x.png>)
-
- ### Deep Intense Rock
- ![alt text](<CleanShot 2026-04-12 at 22.46.45@2x.png>)
-
- ### Contradictory Energy + Mood (Edge)
- ![alt text](<CleanShot 2026-04-12 at 22.47.07@2x.png>)
-
- ### Ghost Genre (Edge)
- ![alt text](<CleanShot 2026-04-12 at 22.48.39@2x.png>)
-
- ### Silent Preferences (Edge)
- ![alt text](<CleanShot 2026-04-12 at 22.49.02@2x.png>)
-
- ### Out-of-Range Energy (Edge)
- ![alt text](<CleanShot 2026-04-12 at 22.50.59@2x.png>)
-
- ### Genre Dominance (Edge)
- ![alt text](<CleanShot 2026-04-12 at 22.52.26@2x.png>)
- 
 ---
 
-## Getting Started
+## Setup Instructions
 
-### Setup
+### Prerequisites
 
-1. Create a virtual environment (optional but recommended):
+- Python 3.10 or higher
+- An [Anthropic API key](https://console.anthropic.com/) (only needed for agent mode)
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
-   .venv\Scripts\activate         # Windows
+### 1. Clone and create a virtual environment
 
-2. Install dependencies
+```bash
+git clone <your-repo-url>
+cd applied-ai-system-final
+
+python -m venv .venv
+source .venv/bin/activate        # Mac / Linux
+# .venv\Scripts\activate         # Windows
+```
+
+### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run the app:
+> `sentence-transformers` pulls in `torch`, which is ~200 MB on first install. This is a one-time cost.
+
+### 3. Build the song embeddings (one-time setup)
+
+```bash
+python scripts/build_embeddings.py
+```
+
+This downloads `all-MiniLM-L6-v2` (~80 MB on first run) and writes `data/embeddings.npy`. It takes about 30 seconds.
+
+### 4. Set your API key
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+# Or copy .env.example to .env and fill it in
+```
+
+### 5. Run the original rule-based system (no API key needed)
 
 ```bash
 python -m src.main
 ```
 
-### Running Tests
+Runs all 8 hardcoded user profiles (3 realistic + 5 adversarial edge cases) and prints ranked recommendations.
 
-Run the starter tests with:
+### 6. Run the AI agent
+
+```bash
+# Pass your request inline:
+python -m src.agent_main "I want chill background music for late-night coding"
+
+# Or run interactively:
+python -m src.agent_main
+# > Describe what you want to listen to: _
+```
+
+### 7. Run tests
 
 ```bash
 pytest
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+No API key required — all Claude calls are mocked.
 
 ---
 
-## Experiments You Tried
+## Sample Interactions
 
-Use this section to document the experiments you ran. For example:
+### Example 1 — Study music
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+**Input:**
+```
+python -m src.agent_main "something calm to study to, acoustic and not too slow"
+```
+
+**Output:**
+```
+Loading songs from data/songs.csv...
+[agent] Turn 1: extracting preferences from: 'something calm to study to, acoustic...'
+[agent]   Extracted: genre=lofi, mood=focused, energy=0.38
+
+Extracted preferences:
+  Genre: lofi  |  Mood: focused
+  Energy: 0.38  |  Acousticness: 0.85
+
+[agent] RAG: retrieving top-30 candidates from 150 songs...
+[agent] Turn 2: reflecting on top-5 results...
+[agent]   Reflection verdict: pass — Results match a calm, acoustic study session well.
+
+====================================================
+  Top 5 Recommendations for: "something calm to study to, ac"
+====================================================
+
+#1  Focus Flow  —  LoRoom
+    Genre: lofi  |  Mood: focused  |  Score: 3.98
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.98).
+
+#2  Late Night Sketch  —  Pencil Lo
+    Genre: lofi  |  Mood: focused  |  Score: 3.98
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.98).
+
+#3  Study Session  —  Brainfog Beats
+    Genre: lofi  |  Mood: focused  |  Score: 3.98
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.98).
+
+#4  Lunchbreak  —  Paper Cup Beats
+    Genre: lofi  |  Mood: focused  |  Score: 3.93
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.93).
+
+#5  Harbor Fog  —  Driftwood Sessions
+    Genre: lofi  |  Mood: relaxed  |  Score: 2.88
+    Why: This song genre match (+2.0), and energy similarity (+0.88).
+
+Claude says: "Results match a calm, acoustic study session well."
+```
 
 ---
 
-## Limitations and Risks
+### Example 2 — Workout music (with reflection refinement)
 
-Summarize some limitations of your recommender.
+**Input:**
+```
+python -m src.agent_main "I need high energy music for the gym, something intense and electronic"
+```
 
-Examples:
+**Output:**
+```
+Loading songs from data/songs.csv...
+[agent] Turn 1: extracting preferences from: 'I need high energy music for the gym...'
+[agent]   Extracted: genre=electronic, mood=intense, energy=0.92
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+Extracted preferences:
+  Genre: electronic  |  Mood: intense
+  Energy: 0.92  |  Acousticness: 0.05
 
-You will go deeper on this in your model card.
+[agent] RAG: retrieving top-30 candidates from 150 songs...
+[agent] Turn 2: reflecting on top-5 results...
+[agent]   Reflection verdict: pass — High-energy electronic tracks, exactly right for a gym session.
+
+====================================================
+  Top 5 Recommendations for: "I need high energy music for th"
+====================================================
+
+#1  Eclipse Drop  —  Bass Theory
+    Genre: electronic  |  Mood: intense  |  Score: 3.97
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.97).
+
+#2  Circuit Breaker  —  Raw Hz
+    Genre: electronic  |  Mood: intense  |  Score: 3.97
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.97).
+
+#3  Bounce Theory  —  Party Circuit
+    Genre: electronic  |  Mood: joyful  |  Score: 2.98
+    Why: This song genre match (+2.0), and energy similarity (+0.98).
+
+#4  Morning Algorithm  —  Daybreak Digital
+    Genre: electronic  |  Mood: happy  |  Score: 2.86
+    Why: This song genre match (+2.0), and energy similarity (+0.86).
+
+#5  Gym Hero  —  Max Pulse
+    Genre: pop  |  Mood: intense  |  Score: 2.97
+    Why: This song mood match (+1.0), and energy similarity (+0.97).
+
+Claude says: "High-energy electronic tracks, exactly right for a gym session."
+```
+
+---
+
+### Example 3 — Vague request (agent refines)
+
+**Input:**
+```
+python -m src.agent_main "late night vibes, kind of sad but nice"
+```
+
+**Output:**
+```
+Loading songs from data/songs.csv...
+[agent] Turn 1: extracting preferences from: 'late night vibes, kind of sad but nice'
+[agent]   Extracted: genre=jazz, mood=melancholic, energy=0.40
+
+Extracted preferences:
+  Genre: jazz  |  Mood: melancholic
+  Energy: 0.40  |  Acousticness: 0.75
+
+[agent] RAG: retrieving top-30 candidates from 150 songs...
+[agent] Turn 2: reflecting on top-5 results...
+[agent]   Reflection verdict: refine
+[agent]   Refining: favorite_mood → nostalgic
+[agent] Re-running with refined preferences...
+
+====================================================
+  Top 5 Recommendations for: "late night vibes, kind of sad b"
+====================================================
+
+#1  Two AM Standard  —  The Night Cats
+    Genre: jazz  |  Mood: nostalgic  |  Score: 3.96
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.96).
+
+#2  Blue Hour Trio  —  Blue Hour Trio
+    Genre: jazz  |  Mood: melancholic  |  Score: 3.92
+    Why: This song genre match (+2.0), and mood match (+1.0), and energy similarity (+0.92).
+
+#3  Late Night Changes  —  Rhythm Parlor
+    Genre: jazz  |  Mood: romantic  |  Score: 2.98
+    Why: This song genre match (+2.0), and energy similarity (+0.98).
+
+#4  Smoke and Mirrors  —  Velvet Quartet
+    Genre: jazz  |  Mood: moody  |  Score: 2.98
+    Why: This song genre match (+2.0), and energy similarity (+0.98).
+
+#5  Morning Pages  —  Cafe Ensemble
+    Genre: jazz  |  Mood: relaxed  |  Score: 2.93
+    Why: This song genre match (+2.0), and energy similarity (+0.93).
+
+Claude says: "'Nostalgic' fits 'late night vibes, kind of sad but nice' better than 'melancholic' — these jazz picks have the right wistful atmosphere."
+```
+
+---
+
+## Design Decisions
+
+### Why RAG + Agentic together?
+
+Either feature alone has a weakness:
+- **RAG alone** requires the user to write a query that maps well to song feature descriptions. Vague queries like "late night vibes" don't reliably extract to a useful embedding.
+- **Agentic alone** (Claude extracts prefs → score all 150 songs) would skip semantic pre-filtering. The rule-based scorer only uses genre, mood, and energy — Claude's extracted preferences would lose most of their richness.
+
+Together, they complement each other: Claude handles ambiguous natural language, RAG uses the full extracted profile (all 8 fields including acousticness and danceability) to find a semantically relevant pool, and the scorer provides a transparent, explainable ranking within that pool.
+
+### Why `all-MiniLM-L6-v2`?
+
+It runs locally with no API key, installs with a single `pip install`, and produces 384-dimensional vectors in under a second for a 150-song catalog. For a catalog of this size, a heavyweight embedding model would add latency with no measurable quality gain. Cosine similarity over 150 vectors with `numpy` is effectively instant.
+
+### Why tool_use for extraction instead of JSON-mode prompting?
+
+A plain "respond only with JSON" prompt occasionally produces prose headers, markdown formatting, or apologetic text when the model is uncertain. Claude's `tool_use` with `tool_choice={"type": "tool", "name": "set_user_prefs"}` forces the API to return a structured block or fail — it's guaranteed by the API contract, not by prompt engineering. This makes the extractor reliable enough to use in a pipeline.
+
+### Trade-offs
+
+| Decision | Upside | Downside |
+|---|---|---|
+| Rule-based scorer preserved | Transparent, testable, no API needed | Still only scores genre + mood + energy; ignores acousticness/danceability |
+| RAG pre-filters to 30 candidates | Full profile used for retrieval; semantic matching | Embeddings must be rebuilt when catalog changes |
+| Reflection hard-capped at 1 retry | Prevents infinite refinement loops | Claude may give up after one attempt even if a better refinement exists |
+| Logs written to `logs/agent.log` | Full auditability; easy to inspect runs | Grows unbounded; no log rotation |
+
+---
+
+## Testing Summary
+
+**Test suite:** 11 tests, all passing (`pytest`). No API key required.
+
+```
+tests/test_agent.py::test_validate_clamps_energy_above_1          PASSED
+tests/test_agent.py::test_validate_clamps_energy_below_0          PASSED
+tests/test_agent.py::test_validate_fills_missing_keys             PASSED
+tests/test_agent.py::test_validate_preserves_valid_values         PASSED
+tests/test_agent.py::test_extract_returns_required_keys           PASSED
+tests/test_agent.py::test_extract_raises_if_no_tool_use           PASSED
+tests/test_agent.py::test_reflect_pass_returns_original_results   PASSED
+tests/test_agent.py::test_reflect_refine_signals_retry            PASSED
+tests/test_agent.py::test_reflect_invalid_json_falls_back         PASSED
+tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score    PASSED
+tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string PASSED
+```
+
+**What worked well:**
+- Mocking `anthropic.Anthropic` with `unittest.mock` made the agent tests self-contained and fast. The tests verify the full control flow — including the reflection retry signal — without spending API tokens.
+- The guardrail tests (`clamps_energy_above_1`, `fills_missing_keys`) caught a real bug: the original project had an out-of-range energy value (1.5) in one of the edge-case profiles. The clamping logic now handles this without crashing.
+- The `test_reflect_invalid_json_falls_back` test confirmed the fallback path works — when Claude returns prose instead of JSON, the system degrades gracefully rather than raising an exception.
+
+**What didn't work initially:**
+- `sentence_transformers` was imported at module level in `retriever.py`, which caused `test_agent.py` to fail with `ModuleNotFoundError` before the package was installed. Moving the import inside `_get_model()` (lazy import) fixed this — tests now collect and run even in environments without the package.
+- The original `recommender.py` had two `score_song` definitions. The second shadowed the first and returned `[]`, silently breaking `recommend_songs`. This was the most consequential bug in the original codebase — the functional interface was completely non-functional. Fixed by deleting the stub.
+
+**Edge cases validated against the original 8 profiles:**
+- **Genre Dominance:** Pop user with energy target 0.10 still receives high-energy pop songs. This is a known limitation of the +2.0 genre weight — documented in `model_card.md`.
+- **Ghost Genre:** Requesting "classical" (not in the catalog) produces no genre bonus; results are entirely energy-proximity driven. The agent now logs a WARNING when an extracted genre isn't in the catalog.
+- **Out-of-Range Energy:** The original project could produce negative energy-similarity scores (energy 1.5 → similarity -0.5). The `_validate_prefs` clamping guardrail prevents this in agent mode.
 
 ---
 
 ## Reflection
 
-Read and complete `model_card.md`:
+Building GrooveMatch taught me that the hardest part of an AI system isn't the model — it's the edges. The original rule-based scorer worked perfectly for the happy path, but it failed in three different ways depending on *why* it couldn't find a match: missing genre, contradictory preferences, or preferences it never read. All three produced confident-looking output. That's the part that surprised me most: bad recommendations look exactly like good ones in this system, because the output format never changes.
 
-[**Model Card**](model_card.md)
+Adding the Claude agent layer made one thing much clearer: structured extraction is not the same as understanding. Claude reliably converts "late night vibes, kind of sad but nice" into `{genre: jazz, mood: melancholic, energy: 0.40}` — but that translation loses information. "Kind of sad but nice" is a feeling, not a feature. The reflection turn exists partly because the first turn is always making a lossy translation, and sometimes the only way to catch that loss is to look at the results and ask whether they match.
 
-Write 1 to 2 paragraphs here about what you learned:
+The RAG component changed how I think about retrieval. Adding semantics on top of a rule-based scorer didn't replace the scorer — it made the scorer's inputs better. The scorer still knows nothing about acousticness or tempo, but the retrieval step now surfaces candidates that are already close in those dimensions, which means the scorer's blind spots matter less in practice. Layering retrieval and ranking is cleaner than trying to make the scorer smarter.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
+The biggest lesson for real AI products: **every design choice is a policy.** Weighting genre at +2.0 is a policy that says "genre matters twice as much as mood." Using 30 RAG candidates is a policy about how much context the scorer needs. Capping refinement at one attempt is a policy about cost and latency. None of these are objectively correct — they're tradeoffs that need to be tested with real users before anyone should trust them.
 
 ---
 
-## 7. `model_card_template.md`
+## Project Structure
 
-Combines reflection and model card framing from the Module 3 guidance. :contentReference[oaicite:2]{index=2}  
-
-```markdown
-# 🎧 Model Card - Music Recommender Simulation
-
-## 1. Model Name
-
-Give your recommender a name, for example:
-
-> VibeFinder 1.0
-
----
-
-## 2. Intended Use
-
-- What is this system trying to do
-- Who is it for
-
-Example:
-
-> This model suggests 3 to 5 songs from a small catalog based on a user's preferred genre, mood, and energy level. It is for classroom exploration only, not for real users.
-
----
-
-## 3. How It Works (Short Explanation)
-
-Describe your scoring logic in plain language.
-
-- What features of each song does it consider
-- What information about the user does it use
-- How does it turn those into a number
-
-Try to avoid code in this section, treat it like an explanation to a non programmer.
+```
+applied-ai-system-final/
+├── data/
+│   ├── songs.csv              # 150-song catalog (22 genres, 12 moods)
+│   ├── embeddings.npy         # Precomputed 150×384 vectors (git-ignored)
+│   └── song_ids.npy           # Song ID ordering for embeddings (git-ignored)
+├── logs/
+│   └── agent.log              # JSON Lines log of all Claude API calls (git-ignored)
+├── scripts/
+│   └── build_embeddings.py    # One-time embedding generation
+├── src/
+│   ├── agent.py               # Claude extraction + reflection agentic loop
+│   ├── agent_main.py          # CLI entry point for agent mode
+│   ├── main.py                # Original CLI: 8 hardcoded profiles
+│   ├── recommender.py         # Song/UserProfile dataclasses + scoring logic
+│   └── retriever.py           # RAG: embedding + cosine similarity retrieval
+├── tests/
+│   ├── test_agent.py          # 9 mocked unit tests for the agent
+│   └── test_recommender.py    # 2 unit tests for the OOP recommender
+├── model_card.md              # GrooveMatch 1.0 model card
+├── reflection.md              # Profile-pair analysis from original project
+├── requirements.txt
+└── .env.example               # Template for ANTHROPIC_API_KEY
+```
 
 ---
 
-## 4. Data
+## Requirements
 
-Describe your dataset.
-
-- How many songs are in `data/songs.csv`
-- Did you add or remove any songs
-- What kinds of genres or moods are represented
-- Whose taste does this data mostly reflect
-
----
-
-## 5. Strengths
-
-Where does your recommender work well
-
-You can think about:
-- Situations where the top results "felt right"
-- Particular user profiles it served well
-- Simplicity or transparency benefits
-
----
-
-## 6. Limitations and Bias
-
-Where does your recommender struggle
-
-Some prompts:
-- Does it ignore some genres or moods
-- Does it treat all users as if they have the same taste shape
-- Is it biased toward high energy or one genre by default
-- How could this be unfair if used in a real product
-
----
-
-## 7. Evaluation
-
-How did you check your system
-
-Examples:
-- You tried multiple user profiles and wrote down whether the results matched your expectations
-- You compared your simulation to what a real app like Spotify or YouTube tends to recommend
-- You wrote tests for your scoring logic
-
-You do not need a numeric metric, but if you used one, explain what it measures.
-
----
-
-## 8. Future Work
-
-If you had more time, how would you improve this recommender
-
-Examples:
-
-- Add support for multiple users and "group vibe" recommendations
-- Balance diversity of songs instead of always picking the closest match
-- Use more features, like tempo ranges or lyric themes
-
----
-
-## 9. Personal Reflection
-
-A few sentences about what you learned:
-
-- What surprised you about how your system behaved
-- How did building this change how you think about real music recommenders
-- Where do you think human judgment still matters, even if the model seems "smart"
-
+```
+anthropic>=0.40.0
+sentence-transformers>=3.0.0
+numpy
+scipy
+pandas
+pytest
+streamlit
+```

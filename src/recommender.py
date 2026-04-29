@@ -28,11 +28,11 @@ class UserProfile:
     favorite_genre: str
     favorite_mood: str
     target_energy: float        # 0.0 (very calm) – 1.0 (very intense)
-    target_tempo_bpm: float     # beats per minute, e.g. 80.0
-    target_valence: float       # 0.0 (dark/sad) – 1.0 (bright/happy)
-    target_danceability: float  # 0.0 (not danceable) – 1.0 (very danceable)
-    target_acousticness: float  # 0.0 (fully electronic) – 1.0 (fully acoustic)
-    likes_acoustic: bool        # convenience flag derived from target_acousticness
+    target_tempo_bpm: float = 100.0   # beats per minute
+    target_valence: float = 0.5       # 0.0 (dark/sad) – 1.0 (bright/happy)
+    target_danceability: float = 0.5  # 0.0 (not danceable) – 1.0 (very danceable)
+    target_acousticness: float = 0.5  # 0.0 (fully electronic) – 1.0 (fully acoustic)
+    likes_acoustic: bool = False      # convenience flag derived from target_acousticness
 
 class Recommender:
     """
@@ -124,15 +124,6 @@ def score_song(song: Dict, user_prefs: Dict) -> Tuple[float, List[str]]:
     reasons.append(f"energy similarity (+{energy_similarity:.2f})")
 
     return score, reasons
-
-def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """
-    Scores a single song against user preferences.
-    Required by recommend_songs() and src/main.py
-    """
-    # TODO: Implement scoring logic using your Algorithm Recipe from Phase 2.
-    # Expected return format: (score, reasons)
-    return []
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
     """
