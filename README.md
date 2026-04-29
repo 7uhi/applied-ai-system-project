@@ -24,6 +24,10 @@ The result: you can ask for *"something mellow to study to, acoustic and not too
 
 ## Architecture
 
+![System Architecture](assets/architecture.png)
+
+> Source: [`assets/architecture.mmd`](assets/architecture.mmd)
+
 ```mermaid
 flowchart TD
     U([Human User\nTypes natural language request])
@@ -154,30 +158,6 @@ pytest
 ```
 
 No API key required — all Claude calls are mocked.
-
----
-
-## Demo Walkthrough
-
-The screenshots below show the rule-based recommender (`python -m src.main`) running three representative profiles. Each result now includes a **Confidence** score (0–100%) showing how well the song matched all three scoring axes.
-
-### 1. Chill Lofi — happy path
-
-A focused, acoustic listener. Genre, mood, and energy all align — the scorer finds a near-perfect match at 100% confidence.
-
-![Chill Lofi results](assets/demo-chill-lofi.png)
-
-### 2. High-Energy Pop — happy path
-
-A workout listener who wants intense pop. Genre + mood match on the top two results; confidence drops to ~74% where only genre fires.
-
-![High-Energy Pop results](assets/demo-high-energy-pop.png)
-
-### 3. [EDGE] Genre Dominance — known limitation
-
-User wants pop but targets very low energy (0.10). High-energy pop songs still win because the +2.0 genre bonus outweighs the energy mismatch. Confidence scores (~55–58%) make this misalignment visible.
-
-![Genre Dominance edge case](assets/demo-edge-genre-dominance.png)
 
 ---
 
@@ -448,10 +428,8 @@ The biggest lesson for real AI products: **every design choice is a policy.** We
 ```
 applied-ai-system-final/
 ├── assets/
-│   ├── demo-chill-lofi.png          # Screenshot: Chill Lofi happy-path output
-│   ├── demo-high-energy-pop.png     # Screenshot: High-Energy Pop output
-│   ├── demo-edge-genre-dominance.png# Screenshot: Genre Dominance edge case
-│   └── ...                          # Additional edge-case screenshots
+│   ├── architecture.png             # System architecture diagram (rendered)
+│   └── architecture.mmd             # Mermaid source for the diagram
 ├── data/
 │   ├── songs.csv              # 150-song catalog (22 genres, 12 moods)
 │   ├── embeddings.npy         # Precomputed 150×384 vectors (git-ignored)

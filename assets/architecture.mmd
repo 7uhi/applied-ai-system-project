@@ -1,0 +1,49 @@
+flowchart TD
+    U([Human User\nTypes natural language request])
+    T([Tests\npytest — human reviews pass/fail])
+
+    subgraph Agent ["Claude Agent · src/agent.py"]
+        A1["Turn 1 — Extract\nClaude converts free text → UserProfile\nvia tool_use (structured output)"]
+        A2["Turn 2 — Reflect\nClaude evaluates top-5 results\nvs. the original request"]
+        A3{Verdict}
+        A4["Refine once\nAdjust 1 field, re-run retrieval"]
+    end
+
+    subgraph RAG ["RAG Retriever · src/retriever.py"]
+        R1["Embed profile text\nall-MiniLM-L6-v2"]
+        R2["Cosine similarity\nagainst 150 precomputed vectors"]
+        R3["Top-30 semantic candidates"]
+    end
+
+    subgraph Scorer ["Rule-Based Scorer · src/recommender.py"]
+        S1["score_song()\ngenre +2 · mood +1 · energy 0–1"]
+        S2["Top-5 ranked with explanations"]
+    end
+
+    subgraph Catalog ["Song Catalog · data/"]
+        C1["songs.csv — 150 songs\n22 genres, 12 moods"]
+        C2["embeddings.npy — 150×384 matrix\nprecomputed, git-ignored"]
+    end
+
+    subgraph Logging ["Logger · logs/agent.log"]
+        L1["JSON Lines\ntimestamp · profile · RAG hits\nreflection verdict · final results"]
+    end
+
+    U -->|free text| A1
+    A1 -->|UserProfile dict| R1
+    C1 --> R2
+    C2 --> R2
+    R1 --> R2
+    R2 --> R3
+    R3 --> S1
+    S1 --> S2
+    S2 --> A2
+    A2 --> A3
+    A3 -->|pass| Output([Final Recommendations\nprinted to terminal])
+    A3 -->|refine| A4
+    A4 -->|adjusted profile| R1
+    A1 --> L1
+    A2 --> L1
+    T -->|mocked Claude + fixture embeddings| Agent
+    T -->|2-song fixture| Scorer
+    Output --> U
