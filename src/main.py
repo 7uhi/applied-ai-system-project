@@ -160,9 +160,9 @@ def main() -> None:
         print("\n" + "=" * 50)
         print(f"   Top 5 Recommendations for: {profile_name}")
         print("=" * 50)
-        for rank, (song, score, explanation) in enumerate(recommendations, start=1):
+        for rank, (song, score, explanation, confidence) in enumerate(recommendations, start=1):
             print(f"\n#{rank}  {song['title']}  —  {song['artist']}")
-            print(f"    Genre: {song['genre']}  |  Mood: {song['mood']}  |  Score: {score:.2f}")
+            print(f"    Genre: {song['genre']}  |  Mood: {song['mood']}  |  Score: {score:.2f}  |  Confidence: {confidence:.0%}")
             print(f"    Why: {explanation}")
 
 

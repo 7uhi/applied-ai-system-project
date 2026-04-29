@@ -86,10 +86,38 @@ These tests confirmed the core issue: a 2.0-point flat bonus for genre label is 
 
 ---
 
-## 9. Personal Reflection  
+## 9. Responsible AI Reflection
 
-Building this system made it clear how much a single design choice can break everything else. I expected the scoring to fail in subtle ways, but the genre bonus failure was blunt — a song could be wrong on every measurable dimension and still win just because its genre label matched.
+### What are the limitations or biases in your system?
 
-The most surprising thing was how much the edge cases taught me. The "contradictory" and "ghost genre" profiles were not exotic corner cases — they are realistic user situations that a real app would encounter every day. That made me realize good testing is as important as the algorithm itself.
+The most structural bias is the **catalog bias**: the song catalog was hand-curated and reflects the taste of whoever built it. Genres like pop, lofi, and rock have the most songs, so users who prefer those genres receive more diverse and better-matched recommendations. A user who wants R&B, Latin, or classical music gets almost nothing useful — not because the algorithm failed, but because those listeners were never considered when the catalog was built. Representation in training data (or in this case, the song catalog) shapes who the system serves well.
 
-This project changed how I think about apps like Spotify. The recommendations feel magical, but underneath they are making similar tradeoffs: which signal gets how much weight, what happens when preferences conflict, and what the system does when it has no good answer. There is no perfect algorithm — there are just choices, and the job is to understand the consequences of each one.
+Beyond the catalog, the **genre-label bias** is the biggest algorithmic flaw. The +2.0 flat bonus for genre means the system treats all genre matches as equally meaningful, regardless of how far off the song is on every other dimension. A pop song with energy 0.95 beats a perfectly-matched folk song for a user who wants quiet — because "pop" fired the bonus and "folk" didn't. Genre is used as a proxy for overall fit when it is really just one dimension of taste.
+
+The system also has a **missing-dimension bias**: tempo, danceability, valence, and acousticness are tracked but never scored. A user who says they want acoustic music and sets `target_acousticness=0.99` receives no benefit from that preference in the rule-based scorer. The system appears to understand more about the user than it actually does.
+
+### Could your AI be misused, and how would you prevent that?
+
+A music recommender seems low-stakes, but a few misuse vectors are worth naming.
+
+**Filter bubble amplification.** If this system were used at scale, it would keep recommending the same genres and moods a user has always picked — never surfacing something new. Repeated exposure narrows taste rather than expanding it. Prevention: add a diversity term to the scoring formula and occasionally surface high-scoring songs from adjacent genres.
+
+**Catalog manipulation.** Because the scoring is transparent and the catalog is editable, someone with write access could inject songs with popular genre/mood labels to make them rank highly regardless of actual quality. A real system would need catalog provenance controls and human review for new additions.
+
+**Preference extraction misuse (agent mode).** The Claude agent extracts a structured user profile from free text. That profile — genre, mood, energy, acousticness — is logged to `logs/agent.log`. If extended to collect richer personal data (age, location, emotional state), those logs would become a privacy liability. The current logging is limited to music preferences, but the pattern could be misapplied to more sensitive contexts without careful policy guardrails.
+
+Prevention in this project is mostly structural: the catalog is a static CSV, logs are local and git-ignored, and the agent's tool schema only asks for music taste. But in a production context, data minimization and access controls would be essential.
+
+### What surprised you while testing your AI's reliability?
+
+The confidence score made something visible that was previously hidden. Before adding it, a song scoring 2.2 and a song scoring 3.9 both printed the same output format — there was no way to see at a glance how certain the system was. Once confidence appeared on every result, the Genre Dominance edge case became immediately legible: the #1 pop recommendation showing 55% confidence while the correct energy match showed 24% made the problem obvious without needing to read the scores or do the math. A number that seemed like a cosmetic addition turned out to be a useful debugging tool.
+
+The ghost genre case also surprised me. I expected "no genre bonus" to produce noticeably worse results, and it did — but the top recommendation still had 50% confidence because mood and energy both matched. The system wasn't failing loudly; it was quietly returning mediocre results that looked acceptable. That's the harder failure mode: not a crash or an obvious wrong answer, but a confident-looking recommendation that doesn't serve the user.
+
+### Collaboration with AI during this project
+
+Claude (via Claude Code) was the primary AI collaborator throughout. The collaboration shaped the project in ways both helpful and occasionally misleading.
+
+**One instance where the AI gave a helpful suggestion:** When I asked Claude to add confidence scoring, it proposed normalizing score by the theoretical maximum (4.0) rather than the observed maximum in the catalog. That choice was better than what I would have done on my own — a max-normalized score would shift whenever the catalog changed, making the metric unstable across versions. The 4.0 constant is anchored to the scoring formula itself, so it remains meaningful even if every song in the catalog changes. I wouldn't have thought of that distinction unprompted.
+
+**One instance where the suggestion was flawed:** Claude's first draft of the ghost genre test created a song with `genre="classical"` and prefs with `favorite_genre="classical"` — meaning they matched perfectly and the test passed for the wrong reason. The test was supposed to verify that a missing genre caps confidence, but instead it verified a perfect genre match. The assertion `score == 2.0` failed because the actual score was 4.0. Claude had described what the test was *meant* to check but written code that checked something else. Catching that required reading the test logic carefully rather than trusting the description. The fix was simple (change the song's genre to `"lofi"` so the catalog-genre mismatch was real), but it was a good reminder that AI-generated tests need the same scrutiny as AI-generated application code.

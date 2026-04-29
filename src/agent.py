@@ -368,9 +368,9 @@ def run_agent(
     print(f"\n{'='*52}")
     print(f"  Top {k} Recommendations for: \"{user_text[:45]}\"")
     print(f"{'='*52}")
-    for rank, (song, score, explanation) in enumerate(results, start=1):
+    for rank, (song, score, explanation, confidence) in enumerate(results, start=1):
         print(f"\n#{rank}  {song['title']}  —  {song['artist']}")
-        print(f"    Genre: {song['genre']}  |  Mood: {song['mood']}  |  Score: {score:.2f}")
+        print(f"    Genre: {song['genre']}  |  Mood: {song['mood']}  |  Score: {score:.2f}  |  Confidence: {confidence:.0%}")
         print(f"    Why: {explanation}")
 
     if reflection:
@@ -380,6 +380,6 @@ def run_agent(
         "user_input": user_text,
         "top_results": [
             {"title": s["title"], "genre": s["genre"], "score": round(sc, 3)}
-            for s, sc, _ in results
+            for s, sc, _, _conf in results
         ],
     })

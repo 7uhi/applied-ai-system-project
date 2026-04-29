@@ -157,6 +157,30 @@ No API key required — all Claude calls are mocked.
 
 ---
 
+## Demo Walkthrough
+
+The screenshots below show the rule-based recommender (`python -m src.main`) running three representative profiles. Each result now includes a **Confidence** score (0–100%) showing how well the song matched all three scoring axes.
+
+### 1. Chill Lofi — happy path
+
+A focused, acoustic listener. Genre, mood, and energy all align — the scorer finds a near-perfect match at 100% confidence.
+
+![Chill Lofi results](assets/demo-chill-lofi.png)
+
+### 2. High-Energy Pop — happy path
+
+A workout listener who wants intense pop. Genre + mood match on the top two results; confidence drops to ~74% where only genre fires.
+
+![High-Energy Pop results](assets/demo-high-energy-pop.png)
+
+### 3. [EDGE] Genre Dominance — known limitation
+
+User wants pop but targets very low energy (0.10). High-energy pop songs still win because the +2.0 genre bonus outweighs the energy mismatch. Confidence scores (~55–58%) make this misalignment visible.
+
+![Genre Dominance edge case](assets/demo-edge-genre-dominance.png)
+
+---
+
 ## Sample Interactions
 
 ### Example 1 — Study music
@@ -342,34 +366,67 @@ A plain "respond only with JSON" prompt occasionally produces prose headers, mar
 
 ## Testing Summary
 
-**Test suite:** 11 tests, all passing (`pytest`). No API key required.
+**16 out of 16 tests pass (`pytest`). No API key required.**
 
 ```
-tests/test_agent.py::test_validate_clamps_energy_above_1          PASSED
-tests/test_agent.py::test_validate_clamps_energy_below_0          PASSED
-tests/test_agent.py::test_validate_fills_missing_keys             PASSED
-tests/test_agent.py::test_validate_preserves_valid_values         PASSED
-tests/test_agent.py::test_extract_returns_required_keys           PASSED
-tests/test_agent.py::test_extract_raises_if_no_tool_use           PASSED
-tests/test_agent.py::test_reflect_pass_returns_original_results   PASSED
-tests/test_agent.py::test_reflect_refine_signals_retry            PASSED
-tests/test_agent.py::test_reflect_invalid_json_falls_back         PASSED
-tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score    PASSED
+tests/test_agent.py::test_validate_clamps_energy_above_1                    PASSED
+tests/test_agent.py::test_validate_clamps_energy_below_0                    PASSED
+tests/test_agent.py::test_validate_fills_missing_keys                       PASSED
+tests/test_agent.py::test_validate_preserves_valid_values                   PASSED
+tests/test_agent.py::test_extract_returns_required_keys                     PASSED
+tests/test_agent.py::test_extract_raises_if_no_tool_use                     PASSED
+tests/test_agent.py::test_reflect_pass_returns_original_results             PASSED
+tests/test_agent.py::test_reflect_refine_signals_retry                      PASSED
+tests/test_agent.py::test_reflect_invalid_json_falls_back                   PASSED
+tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score     PASSED
 tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string PASSED
+tests/test_recommender.py::test_score_song_perfect_match_confidence_is_1   PASSED
+tests/test_recommender.py::test_score_song_energy_only_gives_low_confidence PASSED
+tests/test_recommender.py::test_score_song_ghost_genre_caps_confidence      PASSED
+tests/test_recommender.py::test_recommend_songs_returns_top_k_sorted_by_score PASSED
+tests/test_recommender.py::test_recommend_songs_k_larger_than_catalog_returns_all PASSED
 ```
 
-**What worked well:**
+### Confidence Scoring
+
+Every recommendation now includes a **confidence score** (0–100%) computed as `score / 4.0`, where 4.0 is the maximum possible score (genre match +2.0, mood match +1.0, perfect energy +1.0). This makes reliability visible at a glance:
+
+| Scenario | Example score | Confidence |
+|---|---|---|
+| Perfect genre + mood + energy match | 4.0 | 100% |
+| Genre + mood match, slight energy gap | 3.5 | 88% |
+| Genre match only (energy near-miss) | 2.2 | 55% |
+| Ghost genre (not in catalog) + mood match | 2.0 | 50% |
+| Energy-only match (no genre or mood) | 1.0 | 25% |
+
+Confidence is shown in the terminal output for every ranked result:
+```
+#1  Focus Flow  —  LoRoom
+    Genre: lofi  |  Mood: focused  |  Score: 3.98  |  Confidence: 100%
+```
+
+The 5 new tests directly verify the confidence behavior:
+- **`test_score_song_perfect_match_confidence_is_1`** — a song matching genre, mood, and energy exactly produces confidence 1.0.
+- **`test_score_song_energy_only_gives_low_confidence`** — no genre or mood overlap → confidence 0.25, reflecting that the scorer is guessing on energy alone.
+- **`test_score_song_ghost_genre_caps_confidence`** — user wants a genre absent from the catalog; even with a perfect mood + energy match the score is capped at 2.0/4.0 = 50%.
+- **`test_recommend_songs_returns_top_k_sorted_by_score`** — the highest-scoring song is always ranked first across a mixed three-song pool.
+- **`test_recommend_songs_k_larger_than_catalog_returns_all`** — requesting more songs than exist returns everything without crashing.
+
+### What worked well
+
 - Mocking `anthropic.Anthropic` with `unittest.mock` made the agent tests self-contained and fast. The tests verify the full control flow — including the reflection retry signal — without spending API tokens.
 - The guardrail tests (`clamps_energy_above_1`, `fills_missing_keys`) caught a real bug: the original project had an out-of-range energy value (1.5) in one of the edge-case profiles. The clamping logic now handles this without crashing.
 - The `test_reflect_invalid_json_falls_back` test confirmed the fallback path works — when Claude returns prose instead of JSON, the system degrades gracefully rather than raising an exception.
 
-**What didn't work initially:**
+### What didn't work initially
+
 - `sentence_transformers` was imported at module level in `retriever.py`, which caused `test_agent.py` to fail with `ModuleNotFoundError` before the package was installed. Moving the import inside `_get_model()` (lazy import) fixed this — tests now collect and run even in environments without the package.
 - The original `recommender.py` had two `score_song` definitions. The second shadowed the first and returned `[]`, silently breaking `recommend_songs`. This was the most consequential bug in the original codebase — the functional interface was completely non-functional. Fixed by deleting the stub.
 
-**Edge cases validated against the original 8 profiles:**
-- **Genre Dominance:** Pop user with energy target 0.10 still receives high-energy pop songs. This is a known limitation of the +2.0 genre weight — documented in `model_card.md`.
-- **Ghost Genre:** Requesting "classical" (not in the catalog) produces no genre bonus; results are entirely energy-proximity driven. The agent now logs a WARNING when an extracted genre isn't in the catalog.
+### Edge cases validated against the original 8 profiles
+
+- **Genre Dominance:** Pop user with energy target 0.10 still receives high-energy pop songs (confidence ~55%). This is a known limitation of the +2.0 genre weight — documented in `model_card.md`.
+- **Ghost Genre:** Requesting "classical" (not in the catalog) produces no genre bonus; confidence is capped at 50% even for the best result. The agent logs a WARNING when an extracted genre isn't in the catalog.
 - **Out-of-Range Energy:** The original project could produce negative energy-similarity scores (energy 1.5 → similarity -0.5). The `_validate_prefs` clamping guardrail prevents this in agent mode.
 
 ---
@@ -390,6 +447,11 @@ The biggest lesson for real AI products: **every design choice is a policy.** We
 
 ```
 applied-ai-system-final/
+├── assets/
+│   ├── demo-chill-lofi.png          # Screenshot: Chill Lofi happy-path output
+│   ├── demo-high-energy-pop.png     # Screenshot: High-Energy Pop output
+│   ├── demo-edge-genre-dominance.png# Screenshot: Genre Dominance edge case
+│   └── ...                          # Additional edge-case screenshots
 ├── data/
 │   ├── songs.csv              # 150-song catalog (22 genres, 12 moods)
 │   ├── embeddings.npy         # Precomputed 150×384 vectors (git-ignored)
@@ -406,7 +468,7 @@ applied-ai-system-final/
 │   └── retriever.py           # RAG: embedding + cosine similarity retrieval
 ├── tests/
 │   ├── test_agent.py          # 9 mocked unit tests for the agent
-│   └── test_recommender.py    # 2 unit tests for the OOP recommender
+│   └── test_recommender.py    # 7 unit tests: OOP interface + confidence scoring edge cases
 ├── model_card.md              # GrooveMatch 1.0 model card
 ├── reflection.md              # Profile-pair analysis from original project
 ├── requirements.txt
