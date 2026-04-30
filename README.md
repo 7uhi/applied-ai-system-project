@@ -26,7 +26,7 @@ This repository extends GrooveMatch 1.0 with two fully-integrated AI features:
 
 1. **Retrieval-Augmented Generation (RAG):** The song catalog was expanded from 18 to 150 songs across 22 genres. Each song is pre-embedded as a descriptive sentence using `all-MiniLM-L6-v2`. When a user makes a request, their extracted preferences are embedded and matched semantically via cosine similarity, narrowing 150 songs to 30 candidates before the scoring formula runs.
 
-2. **Agentic Workflow (Claude API):** A three-turn Claude agent handles the user interaction. In Turn 0, Claude briefly reasons about the request — identifying likely energy level, genre family, ambiguities, and intent — before any structured extraction happens. In Turn 1, that reasoning is passed as context into a tool-use extraction call that produces a guaranteed-structured `UserProfile`. In Turn 2, Claude evaluates whether the top-5 recommendations match the original request and proposes a single-field refinement if not. All API calls are logged as JSON Lines for auditability.
+2. **Agentic Workflow (Gemini API):** A three-turn Gemini agent handles the user interaction. In Turn 0, Gemini briefly reasons about the request — identifying likely energy level, genre family, ambiguities, and intent — before any structured extraction happens. In Turn 1, that reasoning is passed as context into a function-calling extraction call that produces a guaranteed-structured `UserProfile`. In Turn 2, Gemini evaluates whether the top-5 recommendations match the original request and proposes a single-field refinement if not. All API calls are logged as JSON Lines for auditability.
 
 The result: you can ask for *"something mellow to study to, acoustic and not too slow"* and get back ranked recommendations with explanations — without touching a config file.
 
@@ -43,9 +43,9 @@ flowchart TD
     U([Human User\nTypes natural language request])
     T([Tests\npytest — human reviews pass/fail])
 
-    subgraph Agent ["Claude Agent · src/agent.py"]
-        A1["Turn 1 — Extract\nClaude converts free text → UserProfile\nvia tool_use (structured output)"]
-        A2["Turn 2 — Reflect\nClaude evaluates top-5 results\nvs. the original request"]
+    subgraph Agent ["Gemini Agent · src/agent.py"]
+        A1["Turn 1 — Extract\nGemini converts free text → UserProfile\nvia function calling (structured output)"]
+        A2["Turn 2 — Reflect\nGemini evaluates top-5 results\nvs. the original request"]
         A3{Verdict}
         A4["Refine once\nAdjust 1 field, re-run retrieval"]
     end
@@ -85,7 +85,7 @@ flowchart TD
     A4 -->|adjusted profile| R1
     A1 --> L1
     A2 --> L1
-    T -->|mocked Claude + fixture embeddings| Agent
+    T -->|mocked Gemini + fixture embeddings| Agent
     T -->|2-song fixture| Scorer
     Output --> U
 ```
@@ -93,11 +93,11 @@ flowchart TD
 **How data moves through the system:**
 
 1. The user types a natural-language music request.
-2. Claude (Turn 1) calls the `set_user_prefs` tool to extract structured preferences (genre, mood, energy, tempo, valence, danceability, acousticness).
+2. Gemini (Turn 1) calls the `set_user_prefs` function to extract structured preferences (genre, mood, energy, tempo, valence, danceability, acousticness).
 3. The retriever converts those preferences into an embeddable sentence, encodes it with `all-MiniLM-L6-v2`, and finds the 30 most semantically similar songs via cosine similarity.
 4. The rule-based scorer ranks those 30 candidates and returns the top 5 with explanations.
-5. Claude (Turn 2) reads the results and the original request, decides if they match, and either approves or proposes one refinement. If refined, steps 3–4 repeat once.
-6. Every Claude call is appended to `logs/agent.log` as a JSON record.
+5. Gemini (Turn 2) reads the results and the original request, decides if they match, and either approves or proposes one refinement. If refined, steps 3–4 repeat once.
+6. Every Gemini call is appended to `logs/agent.log` as a JSON record.
 
 ---
 
@@ -106,7 +106,7 @@ flowchart TD
 ### Prerequisites
 
 - Python 3.10 or higher
-- An [Anthropic API key](https://console.anthropic.com/) (only needed for agent mode)
+- A [Gemini API key](https://aistudio.google.com/apikey) (only needed for agent mode)
 
 ### 1. Clone and create a virtual environment
 
@@ -138,9 +138,11 @@ This downloads `all-MiniLM-L6-v2` (~80 MB on first run) and writes `data/embeddi
 ### 4. Set your API key
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export GOOGLE_API_KEY=your-gemini-api-key-here
 # Or copy .env.example to .env and fill it in
 ```
+
+> Get a free Gemini API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 
 ### 5. Run the original rule-based system (no API key needed)
 
@@ -167,7 +169,7 @@ python -m src.agent_main
 pytest
 ```
 
-No API key required — all Claude calls are mocked.
+No API key required — all Gemini calls are mocked.
 
 ---
 
@@ -218,7 +220,7 @@ Extracted preferences:
     Genre: lofi  |  Mood: relaxed  |  Score: 2.88
     Why: This song genre match (+2.0), and energy similarity (+0.88).
 
-Claude says: "Results match a calm, acoustic study session well."
+Gemini says: "Results match a calm, acoustic study session well."
 ```
 
 ---
@@ -268,7 +270,7 @@ Extracted preferences:
     Genre: pop  |  Mood: intense  |  Score: 2.97
     Why: This song mood match (+1.0), and energy similarity (+0.97).
 
-Claude says: "High-energy electronic tracks, exactly right for a gym session."
+Gemini says: "High-energy electronic tracks, exactly right for a gym session."
 ```
 
 ---
@@ -320,7 +322,7 @@ Extracted preferences:
     Genre: jazz  |  Mood: relaxed  |  Score: 2.93
     Why: This song genre match (+2.0), and energy similarity (+0.93).
 
-Claude says: "'Nostalgic' fits 'late night vibes, kind of sad but nice' better than 'melancholic' — these jazz picks have the right wistful atmosphere."
+Gemini says: "'Nostalgic' fits 'late night vibes, kind of sad but nice' better than 'melancholic' — these jazz picks have the right wistful atmosphere."
 ```
 
 ---
@@ -339,9 +341,9 @@ Together, they complement each other: Claude handles ambiguous natural language,
 
 It runs locally with no API key, installs with a single `pip install`, and produces 384-dimensional vectors in under a second for a 150-song catalog. For a catalog of this size, a heavyweight embedding model would add latency with no measurable quality gain. Cosine similarity over 150 vectors with `numpy` is effectively instant.
 
-### Why tool_use for extraction instead of JSON-mode prompting?
+### Why function calling for extraction instead of JSON-mode prompting?
 
-A plain "respond only with JSON" prompt occasionally produces prose headers, markdown formatting, or apologetic text when the model is uncertain. Claude's `tool_use` with `tool_choice={"type": "tool", "name": "set_user_prefs"}` forces the API to return a structured block or fail — it's guaranteed by the API contract, not by prompt engineering. This makes the extractor reliable enough to use in a pipeline.
+A plain "respond only with JSON" prompt occasionally produces prose headers, markdown formatting, or apologetic text when the model is uncertain. Gemini's function calling with `mode="ANY"` forces the API to return a structured function call or fail — it's guaranteed by the API contract, not by prompt engineering. This makes the extractor reliable enough to use in a pipeline.
 
 ### Trade-offs
 
@@ -369,7 +371,7 @@ tests/test_agent.py::test_validate_preserves_valid_values                   PASS
 tests/test_agent.py::test_plan_request_returns_dict                         PASSED
 tests/test_agent.py::test_plan_request_falls_back_on_invalid_json           PASSED
 tests/test_agent.py::test_extract_returns_required_keys                     PASSED
-tests/test_agent.py::test_extract_raises_if_no_tool_use                     PASSED
+tests/test_agent.py::test_extract_raises_if_no_function_call                PASSED
 tests/test_agent.py::test_reflect_pass_returns_original_results             PASSED
 tests/test_agent.py::test_reflect_refine_signals_retry                      PASSED
 tests/test_agent.py::test_reflect_invalid_json_falls_back                   PASSED
@@ -428,9 +430,9 @@ The 5 new tests directly verify the confidence behavior:
 
 ### What worked well
 
-- Mocking `anthropic.Anthropic` with `unittest.mock` made the agent tests self-contained and fast. The tests verify the full control flow — including the reflection retry signal — without spending API tokens.
+- Mocking `google.genai.Client` with `unittest.mock` made the agent tests self-contained and fast. The tests verify the full control flow — including the reflection retry signal — without spending API tokens.
 - The guardrail tests (`clamps_energy_above_1`, `fills_missing_keys`) caught a real bug: the original project had an out-of-range energy value (1.5) in one of the edge-case profiles. The clamping logic now handles this without crashing.
-- The `test_reflect_invalid_json_falls_back` test confirmed the fallback path works — when Claude returns prose instead of JSON, the system degrades gracefully rather than raising an exception.
+- The `test_reflect_invalid_json_falls_back` test confirmed the fallback path works — when Gemini returns prose instead of JSON, the system degrades gracefully rather than raising an exception.
 
 ### What didn't work initially
 
@@ -449,7 +451,7 @@ The 5 new tests directly verify the confidence behavior:
 
 Building GrooveMatch taught me that the hardest part of an AI system isn't the model — it's the edges. The original rule-based scorer worked perfectly for the happy path, but it failed in three different ways depending on *why* it couldn't find a match: missing genre, contradictory preferences, or preferences it never read. All three produced confident-looking output. That's the part that surprised me most: bad recommendations look exactly like good ones in this system, because the output format never changes.
 
-Adding the Claude agent layer made one thing much clearer: structured extraction is not the same as understanding. Claude reliably converts "late night vibes, kind of sad but nice" into `{genre: jazz, mood: melancholic, energy: 0.40}` — but that translation loses information. "Kind of sad but nice" is a feeling, not a feature. The reflection turn exists partly because the first turn is always making a lossy translation, and sometimes the only way to catch that loss is to look at the results and ask whether they match.
+Adding the Gemini agent layer made one thing much clearer: structured extraction is not the same as understanding. Gemini reliably converts "late night vibes, kind of sad but nice" into `{genre: jazz, mood: melancholic, energy: 0.40}` — but that translation loses information. "Kind of sad but nice" is a feeling, not a feature. The reflection turn exists partly because the first turn is always making a lossy translation, and sometimes the only way to catch that loss is to look at the results and ask whether they match.
 
 The RAG component changed how I think about retrieval. Adding semantics on top of a rule-based scorer didn't replace the scorer — it made the scorer's inputs better. The scorer still knows nothing about acousticness or tempo, but the retrieval step now surfaces candidates that are already close in those dimensions, which means the scorer's blind spots matter less in practice. Layering retrieval and ranking is cleaner than trying to make the scorer smarter.
 
@@ -474,7 +476,7 @@ applied-ai-system-final/
 │   ├── build_embeddings.py    # One-time embedding generation
 │   └── eval.py                # Evaluation harness: 8 predefined test cases, pass/fail + confidence summary
 ├── src/
-│   ├── agent.py               # Claude extraction + reflection agentic loop
+│   ├── agent.py               # Gemini extraction + reflection agentic loop
 │   ├── agent_main.py          # CLI entry point for agent mode
 │   ├── main.py                # Original CLI: 8 hardcoded profiles
 │   ├── recommender.py         # Song/UserProfile dataclasses + scoring logic
@@ -485,7 +487,7 @@ applied-ai-system-final/
 ├── model_card.md              # GrooveMatch 1.0 model card
 ├── reflection.md              # Profile-pair analysis from original project
 ├── requirements.txt
-└── .env.example               # Template for ANTHROPIC_API_KEY
+└── .env.example               # Template for GOOGLE_API_KEY
 ```
 
 ---
@@ -493,7 +495,7 @@ applied-ai-system-final/
 ## Requirements
 
 ```
-anthropic>=0.40.0
+google-genai>=1.0.0
 sentence-transformers>=3.0.0
 numpy
 scipy

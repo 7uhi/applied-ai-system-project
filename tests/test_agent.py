@@ -1,6 +1,6 @@
 """
-Unit tests for src/agent.py — all Claude API calls are mocked so no
-ANTHROPIC_API_KEY is required to run pytest.
+Unit tests for src/agent.py — all Gemini API calls are mocked so no
+GOOGLE_API_KEY is required to run pytest.
 """
 
 import json
@@ -23,17 +23,26 @@ from src.agent import (
 # ---------------------------------------------------------------------------
 
 def _make_tool_response(prefs: dict) -> MagicMock:
-    """Build a mock Anthropic API response that returns a tool_use block."""
-    tool_block = SimpleNamespace(type="tool_use", input=prefs)
-    usage = SimpleNamespace(input_tokens=100, output_tokens=50)
-    return SimpleNamespace(content=[tool_block], usage=usage)
+    """Build a mock Gemini API response with a function_call result."""
+    fn_call = MagicMock()
+    fn_call.name = "set_user_prefs"
+    fn_call.args = prefs  # plain dict; dict(fn_call.args) works
+
+    usage = SimpleNamespace(prompt_token_count=100, candidates_token_count=50)
+    response = MagicMock()
+    response.function_calls = [fn_call]
+    response.usage_metadata = usage
+    return response
 
 
 def _make_text_response(text: str) -> MagicMock:
-    """Build a mock Anthropic API response that returns a text block."""
-    text_block = SimpleNamespace(type="text", text=text)
-    usage = SimpleNamespace(input_tokens=80, output_tokens=40)
-    return SimpleNamespace(content=[text_block], usage=usage)
+    """Build a mock Gemini API response with plain text (no function call)."""
+    usage = SimpleNamespace(prompt_token_count=80, candidates_token_count=40)
+    response = MagicMock()
+    response.text = text
+    response.function_calls = []  # no function calls — triggers ValueError in extract
+    response.usage_metadata = usage
+    return response
 
 
 def _fake_results() -> list[tuple]:
@@ -103,7 +112,7 @@ def test_plan_request_returns_dict():
         "reasoning": "User said 'calm' and 'acoustic'.",
     })
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response(plan_json)
+    mock_client.models.generate_content.return_value = _make_text_response(plan_json)
 
     with patch("src.agent._log_event"):
         result = plan_request("something calm and acoustic", mock_client)
@@ -115,7 +124,7 @@ def test_plan_request_returns_dict():
 
 def test_plan_request_falls_back_on_invalid_json():
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response("Not JSON at all.")
+    mock_client.models.generate_content.return_value = _make_text_response("Not JSON at all.")
 
     with patch("src.agent._log_event"):
         result = plan_request("anything", mock_client)
@@ -139,7 +148,7 @@ def test_extract_returns_required_keys():
         "likes_acoustic": True,
     }
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_tool_response(raw_prefs)
+    mock_client.models.generate_content.return_value = _make_tool_response(raw_prefs)
 
     with patch("src.agent._log_event"):
         result = extract_user_prefs("something calm to study to", mock_client)
@@ -149,12 +158,12 @@ def test_extract_returns_required_keys():
     assert 0.0 <= result["target_energy"] <= 1.0
 
 
-def test_extract_raises_if_no_tool_use():
+def test_extract_raises_if_no_function_call():
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response("Sorry, I cannot help.")
+    mock_client.models.generate_content.return_value = _make_text_response("Sorry, I cannot help.")
 
     with patch("src.agent._log_event"):
-        with pytest.raises(ValueError, match="tool_use"):
+        with pytest.raises(ValueError, match="function_call"):
             extract_user_prefs("some request", mock_client)
 
 
@@ -165,7 +174,7 @@ def test_extract_raises_if_no_tool_use():
 def test_reflect_pass_returns_original_results():
     verdict_json = json.dumps({"verdict": "pass", "reflection": "Results look great!"})
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response(verdict_json)
+    mock_client.models.generate_content.return_value = _make_text_response(verdict_json)
 
     user_prefs = _validate_prefs({"favorite_genre": "lofi", "favorite_mood": "chill", "target_energy": 0.4})
     results = _fake_results()
@@ -186,7 +195,7 @@ def test_reflect_refine_signals_retry():
         "reflection": "Energy is too high for a peaceful request.",
     })
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response(verdict_json)
+    mock_client.models.generate_content.return_value = _make_text_response(verdict_json)
 
     user_prefs = _validate_prefs({"favorite_genre": "ambient", "favorite_mood": "peaceful", "target_energy": 0.6})
     results = _fake_results()
@@ -202,7 +211,7 @@ def test_reflect_refine_signals_retry():
 
 def test_reflect_invalid_json_falls_back():
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _make_text_response("This is not JSON at all.")
+    mock_client.models.generate_content.return_value = _make_text_response("This is not JSON at all.")
 
     user_prefs = _validate_prefs({"favorite_genre": "pop", "favorite_mood": "happy", "target_energy": 0.8})
     results = _fake_results()

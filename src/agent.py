@@ -1,12 +1,11 @@
 """
 Agentic workflow for the music recommender.
 
-Turn 1 — Extract: Claude converts free-text user input into a structured
-          UserProfile dict using tool_use (guaranteed structured output).
-
-Turn 2 — Reflect: Claude reviews the top-5 recommendations against the
-          original request and optionally refines one preference field,
-          triggering a single re-run of retrieval + scoring.
+Turn 0 — Plan: Gemini reasons about the user request before extraction.
+Turn 1 — Extract: Gemini converts free-text input into a structured
+          UserProfile dict using function calling (guaranteed structured output).
+Turn 2 — Reflect: Gemini reviews top-5 results and optionally refines one
+          preference field, triggering a single re-run of retrieval + scoring.
 
 All API calls are logged as JSON Lines to logs/agent.log.
 """
@@ -17,9 +16,9 @@ import os
 import sys
 import pathlib
 from datetime import datetime, timezone
-from typing import Any
 
-import anthropic
+from google import genai
+from google.genai import types
 
 from .recommender import load_songs, recommend_songs
 from .retriever import load_embeddings, retrieve_candidates
@@ -38,6 +37,8 @@ logging.basicConfig(
 )
 _logger = logging.getLogger("music_agent")
 
+_MODEL_NAME = "gemini-2.5-flash"
+
 
 def _log_event(event: str, data: dict) -> None:
     """Append a JSON Lines record to logs/agent.log."""
@@ -47,89 +48,57 @@ def _log_event(event: str, data: dict) -> None:
         f.write(json.dumps(record) + "\n")
 
 
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences from a JSON response."""
+    text = text.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1] if len(parts) > 1 else text
+        if text.startswith("json"):
+            text = text[4:]
+    return text.strip()
+
+
 # ---------------------------------------------------------------------------
 # Tool definition for structured extraction
 # ---------------------------------------------------------------------------
 
-_EXTRACT_TOOL: dict[str, Any] = {
-    "name": "set_user_prefs",
-    "description": (
-        "Record the user's music preferences extracted from their natural-language description. "
-        "Choose the closest matching genre and mood from what exists in the catalog."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "favorite_genre": {
-                "type": "string",
-                "description": (
-                    "Closest genre. Known genres: pop, lofi, rock, ambient, jazz, synthwave, "
-                    "indie pop, country, electronic, folk, metal, bossa nova, darkwave, "
-                    "bluegrass, meditation, hip-hop, indie folk, reggae, soul, r&b, trap, classical."
-                ),
-            },
-            "favorite_mood": {
-                "type": "string",
-                "description": (
-                    "Closest mood. Known moods: happy, chill, intense, focused, relaxed, moody, "
-                    "nostalgic, angry, joyful, romantic, melancholic, peaceful."
-                ),
-            },
-            "target_energy": {
-                "type": "number",
-                "description": "Energy level 0.0 (very calm) to 1.0 (very intense).",
-            },
-            "target_tempo_bpm": {
-                "type": "number",
-                "description": "Beats per minute, typically 50–175.",
-            },
-            "target_valence": {
-                "type": "number",
-                "description": "Positivity 0.0 (dark/sad) to 1.0 (bright/happy).",
-            },
-            "target_danceability": {
-                "type": "number",
-                "description": "Danceability 0.0 (not danceable) to 1.0 (very danceable).",
-            },
-            "target_acousticness": {
-                "type": "number",
-                "description": "Acousticness 0.0 (fully electronic) to 1.0 (fully acoustic).",
-            },
-            "likes_acoustic": {
-                "type": "boolean",
-                "description": "True if the user prefers acoustic/organic sound.",
-            },
-        },
-        "required": [
-            "favorite_genre",
-            "favorite_mood",
-            "target_energy",
-            "target_tempo_bpm",
-            "target_valence",
-            "target_danceability",
-            "target_acousticness",
-            "likes_acoustic",
-        ],
-    },
-}
+def set_user_prefs(
+    favorite_genre: str,
+    favorite_mood: str,
+    target_energy: float,
+    target_tempo_bpm: float,
+    target_valence: float,
+    target_danceability: float,
+    target_acousticness: float,
+    likes_acoustic: bool,
+) -> dict:
+    """Record the user's music preferences extracted from their natural-language description.
+    Choose the closest matching genre and mood from what exists in the catalog.
+
+    Args:
+        favorite_genre: Closest genre. Known genres: pop, lofi, rock, ambient, jazz, synthwave, indie pop, country, electronic, folk, metal, bossa nova, darkwave, bluegrass, meditation, hip-hop, indie folk, reggae, soul, r&b, trap, classical.
+        favorite_mood: Closest mood. Known moods: happy, chill, intense, focused, relaxed, moody, nostalgic, angry, joyful, romantic, melancholic, peaceful.
+        target_energy: Energy level 0.0 (very calm) to 1.0 (very intense).
+        target_tempo_bpm: Beats per minute, typically 50 to 175.
+        target_valence: Positivity 0.0 (dark/sad) to 1.0 (bright/happy).
+        target_danceability: Danceability 0.0 (not danceable) to 1.0 (very danceable).
+        target_acousticness: Acousticness 0.0 (fully electronic) to 1.0 (fully acoustic).
+        likes_acoustic: True if the user prefers acoustic/organic sound.
+    """
+    return {}
+
 
 _SYSTEM_PROMPT = (
     "You are a music preference parser. "
     "Extract structured music preferences from the user's description. "
-    "Always call the set_user_prefs tool — never reply with prose."
+    "Always call the set_user_prefs function — never reply with prose."
 )
 
 # ---------------------------------------------------------------------------
 # Guardrails
 # ---------------------------------------------------------------------------
 
-_FLOAT_FIELDS = [
-    "target_energy",
-    "target_tempo_bpm",
-    "target_valence",
-    "target_danceability",
-    "target_acousticness",
-]
 _DEFAULTS = {
     "favorite_genre": "pop",
     "favorite_mood": "happy",
@@ -188,22 +157,24 @@ _PLAN_SYSTEM_PROMPT = (
 )
 
 
-def plan_request(user_text: str, client: anthropic.Anthropic) -> dict:
+def plan_request(user_text: str, client: genai.Client) -> dict:
     """
-    Turn 0: Claude briefly reasons about the user's request before extraction.
+    Turn 0: Gemini briefly reasons about the user's request before extraction.
     Returns a dict with keys: likely_energy, likely_genre_family, likely_mood,
     ambiguities, reasoning. Falls back to an empty dict on parse failure.
     """
     _logger.info("Turn 0: planning intent for: '%s'", user_text)
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=256,
-        system=_PLAN_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_text}],
+    response = client.models.generate_content(
+        model=_MODEL_NAME,
+        contents=user_text,
+        config=types.GenerateContentConfig(
+            system_instruction=_PLAN_SYSTEM_PROMPT,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
     )
 
-    raw_text = response.content[0].text.strip()
+    raw_text = _strip_fences(response.text)
     try:
         plan = json.loads(raw_text)
     except json.JSONDecodeError:
@@ -212,8 +183,8 @@ def plan_request(user_text: str, client: anthropic.Anthropic) -> dict:
 
     _log_event("plan", {
         "user_input": user_text,
-        "tokens_in": response.usage.input_tokens,
-        "tokens_out": response.usage.output_tokens,
+        "tokens_in": response.usage_metadata.prompt_token_count,
+        "tokens_out": response.usage_metadata.candidates_token_count,
         "plan": plan,
     })
     return plan
@@ -223,46 +194,46 @@ def plan_request(user_text: str, client: anthropic.Anthropic) -> dict:
 # Turn 1 — Extract
 # ---------------------------------------------------------------------------
 
-def extract_user_prefs(user_text: str, client: anthropic.Anthropic, plan: dict | None = None) -> dict:
-    """Call Claude to extract a structured UserProfile dict from free text.
+def extract_user_prefs(user_text: str, client: genai.Client, plan: dict | None = None) -> dict:
+    """Call Gemini to extract a structured UserProfile dict from free text.
 
     If a Turn 0 plan dict is provided, it is prepended to the extraction
-    prompt so Claude's reasoning is grounded in its own prior analysis.
+    prompt so Gemini's reasoning is grounded in its own prior analysis.
     """
     _logger.info("Turn 1: extracting preferences from: '%s'", user_text)
 
     if plan:
-        plan_context = (
+        user_message = (
             f"Your prior analysis of this request: {json.dumps(plan)}\n\n"
             f"User request: {user_text}"
         )
-        user_message = plan_context
     else:
         user_message = user_text
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        system=_SYSTEM_PROMPT,
-        tools=[_EXTRACT_TOOL],
-        tool_choice={"type": "tool", "name": "set_user_prefs"},
-        messages=[{"role": "user", "content": user_message}],
+    response = client.models.generate_content(
+        model=_MODEL_NAME,
+        contents=user_message,
+        config=types.GenerateContentConfig(
+            system_instruction=_SYSTEM_PROMPT,
+            tools=[set_user_prefs],
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode="ANY"),
+            ),
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
     )
 
-    tool_block = next(
-        (b for b in response.content if b.type == "tool_use"),
-        None,
-    )
-    if tool_block is None:
-        raise ValueError("Claude did not return a tool_use block during extraction.")
+    fn_calls = response.function_calls
+    if not fn_calls or fn_calls[0].name != "set_user_prefs":
+        raise ValueError("Gemini did not return a function_call during extraction.")
 
-    raw_prefs = tool_block.input
+    raw_prefs = dict(fn_calls[0].args)
     prefs = _validate_prefs(raw_prefs)
 
     _log_event("extract", {
         "user_input": user_text,
-        "tokens_in": response.usage.input_tokens,
-        "tokens_out": response.usage.output_tokens,
+        "tokens_in": response.usage_metadata.prompt_token_count,
+        "tokens_out": response.usage_metadata.candidates_token_count,
         "profile": prefs,
     })
     _logger.info(
@@ -280,12 +251,12 @@ def reflect_and_refine(
     user_text: str,
     user_prefs: dict,
     results: list[tuple],
-    client: anthropic.Anthropic,
-) -> tuple[list[tuple], str]:
+    client: genai.Client,
+) -> tuple:
     """
-    Ask Claude whether the top-5 results match the user's intent.
+    Ask Gemini whether the top-5 results match the user's intent.
 
-    Returns (final_results, reflection_text). If Claude proposes a refinement,
+    Returns (final_results, reflection_text). If Gemini proposes a refinement,
     one field is adjusted and recommend_songs is re-run once (hard cap).
     """
     _logger.info("Turn 2: reflecting on top-%d results...", len(results))
@@ -302,19 +273,21 @@ def reflect_and_refine(
         f"The top recommendations are:\n{results_summary}\n\n"
         "Do these results match what the user was looking for?\n"
         "Reply with ONLY valid JSON in one of these two formats:\n"
-        '  {\"verdict\": \"pass\", \"reflection\": \"<one sentence>\"}\n'
-        '  {\"verdict\": \"refine\", \"field\": \"<field_name>\", '
-        '\"new_value\": <value>, \"reflection\": \"<one sentence>\"}\n'
+        '  {"verdict": "pass", "reflection": "<one sentence>"}\n'
+        '  {"verdict": "refine", "field": "<field_name>", '
+        '"new_value": <value>, "reflection": "<one sentence>"}\n'
         "Do not include any text outside the JSON object."
     )
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=256,
-        messages=[{"role": "user", "content": reflect_prompt}],
+    response = client.models.generate_content(
+        model=_MODEL_NAME,
+        contents=reflect_prompt,
+        config=types.GenerateContentConfig(
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        ),
     )
 
-    raw_text = response.content[0].text.strip()
+    raw_text = _strip_fences(response.text)
 
     try:
         verdict_data = json.loads(raw_text)
@@ -323,8 +296,8 @@ def reflect_and_refine(
         _log_event("reflect", {
             "verdict": "parse_error",
             "raw_response": raw_text,
-            "tokens_in": response.usage.input_tokens,
-            "tokens_out": response.usage.output_tokens,
+            "tokens_in": response.usage_metadata.prompt_token_count,
+            "tokens_out": response.usage_metadata.candidates_token_count,
         })
         return results, raw_text
 
@@ -346,16 +319,16 @@ def reflect_and_refine(
                 "field_changed": field,
                 "new_value": new_value,
                 "reflection": reflection,
-                "tokens_in": response.usage.input_tokens,
-                "tokens_out": response.usage.output_tokens,
+                "tokens_in": response.usage_metadata.prompt_token_count,
+                "tokens_out": response.usage_metadata.candidates_token_count,
             })
             return None, reflection, refined_prefs  # signal to caller to re-run
 
     _log_event("reflect", {
         "verdict": verdict,
         "reflection": reflection,
-        "tokens_in": response.usage.input_tokens,
-        "tokens_out": response.usage.output_tokens,
+        "tokens_in": response.usage_metadata.prompt_token_count,
+        "tokens_out": response.usage_metadata.candidates_token_count,
     })
     return results, reflection
 
@@ -371,12 +344,12 @@ def run_agent(
 ) -> None:
     """Full agentic pipeline: plan → extract → RAG retrieve → score → reflect → print."""
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = os.environ.get("GOOGLE_API_KEY", "")
     if not api_key:
-        print("Error: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
+        print("Error: GOOGLE_API_KEY environment variable is not set.", file=sys.stderr)
         sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 
     # Load catalog
     songs = load_songs(songs_path)
@@ -388,7 +361,7 @@ def run_agent(
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # Turn 0 — plan: Claude reasons about the request before extracting
+    # Turn 0 — plan: Gemini reasons about the request before extracting
     try:
         plan = plan_request(user_text, client)
     except Exception as e:
@@ -450,7 +423,7 @@ def run_agent(
         print(f"    Why: {explanation}")
 
     if reflection:
-        print(f"\nClaude says: \"{reflection}\"")
+        print(f"\nGemini says: \"{reflection}\"")
 
     _log_event("final", {
         "user_input": user_text,

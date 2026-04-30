@@ -1,7 +1,7 @@
 pandas
 pytest
 streamlit
-anthropic>=0.40.0
+google-genai>=1.0.0
 sentence-transformers>=3.0.0
 numpy
 scipy
