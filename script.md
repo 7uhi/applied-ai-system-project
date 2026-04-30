@@ -9,7 +9,7 @@ Open two terminal panes side by side:
 - **Left pane** — ready to run `python -m src.agent_main "..."` commands
 - **Right pane** — ready to run `pytest` and `python scripts/eval.py`
 
-Make sure `ANTHROPIC_API_KEY` is exported and `data/embeddings.npy` exists.
+Make sure `GOOGLE_API_KEY` is exported and `data/embeddings.npy` exists.
 Zoom terminal font to at least 16pt so output is readable in the recording.
 
 ---
@@ -22,7 +22,7 @@ Zoom terminal font to at least 16pt so output is readable in the recording.
 >
 > The original version was a rule-based scorer I built in Modules 1–3.
 > This version adds two AI layers on top: a RAG retrieval step and a
-> three-turn Claude agent. I'll show you both in action, then walk through
+> three-turn Gemini agent. I'll show you both in action, then walk through
 > the reliability layer, and close with what I learned."
 
 *[Keep terminal visible in background. Don't show file structure or setup.]*
@@ -38,12 +38,12 @@ python -m src.agent_main "something calm to study to, acoustic and not too slow"
 
 **Narrate as output appears:**
 
-> "Turn 0 is the new planning step — Claude reads the raw request and reasons
+> "Turn 0 is the new planning step — Gemini reads the raw request and reasons
 > about it before doing anything structured. You can see it identified low energy,
 > an acoustic genre family, and a focused mood. It also flags what's ambiguous —
 > in this case, 'not too slow' is subjective.
 >
-> Turn 1 uses Claude's tool-use API — not a prompt, but a forced function call —
+> Turn 1 uses Gemini's function calling API — not a prompt, but a forced function call —
 > to produce a guaranteed-structured UserProfile. Genre, mood, energy, acousticness,
 > all eight fields, no JSON parsing risk.
 >
@@ -51,7 +51,7 @@ python -m src.agent_main "something calm to study to, acoustic and not too slow"
 > against 150 pre-embedded songs, narrowing to the 30 closest candidates before
 > the rule-based scorer ranks them.
 >
-> Turn 2 is the reflection step — Claude looks at the top-5 results and decides
+> Turn 2 is the reflection step — Gemini looks at the top-5 results and decides
 > whether they match what the user actually asked for. Here it says 'pass' with
 > a one-sentence verdict. Confidence scores are visible next to each result —
 > these three hit 99–100% because genre, mood, and energy all matched."
@@ -70,19 +70,19 @@ python -m src.agent_main "late night vibes, kind of sad but nice"
 **Narrate as output appears:**
 
 > "This input is deliberately vague — 'late night vibes, kind of sad but nice'
-> isn't a genre or a mood. Watch Turn 0: Claude infers moderate energy, jazz
+> isn't a genre or a mood. Watch Turn 0: Gemini infers moderate energy, jazz
 > family, melancholic mood. That reasoning goes into Turn 1 as context, which
 > is why the extracted profile lands on jazz + melancholic rather than something
 > generic.
 >
-> Now watch Turn 2. Claude looks at the top-5 results — all jazz, but mostly
+> Now watch Turn 2. Gemini looks at the top-5 results — all jazz, but mostly
 > 'melancholic' tagged songs — and decides the original request actually reads
 > more as 'nostalgic' than purely melancholic. Verdict: refine. It changes one
 > field, favorite_mood → nostalgic, and the system re-runs retrieval and scoring
 > automatically.
 >
 > The final list shifts. 'Two AM Standard' comes out on top — jazz, nostalgic,
-> score 3.96 — and Claude's closing line explains exactly why it made the change.
+> score 3.96 — and Gemini's closing line explains exactly why it made the change.
 > One refinement, one re-run, hard stop."
 
 *[Pause on the final list for 3 seconds.]*
@@ -150,7 +150,7 @@ pytest
 
 > "Three things stuck with me from this project.
 >
-> First: structured extraction is not the same as understanding. Claude reliably
+> First: structured extraction is not the same as understanding. Gemini reliably
 > converts 'late night vibes, kind of sad but nice' into a JSON dict — but that
 > translation is lossy. The reflection turn exists because the only way to catch
 > that loss is to look at the output and ask whether it matches.
@@ -171,7 +171,7 @@ pytest
 ## 7. Portfolio close (30 seconds)
 
 > "GitHub link is in the README. The repo has all the source, the eval harness,
-> and this walkthrough. If you want to run it yourself, you need an Anthropic
+> and this walkthrough. If you want to run it yourself, you need a Gemini
 > API key and one command to build the embeddings — everything else is standard
 > pip.
 >
@@ -189,7 +189,7 @@ This project shows that I approach AI engineering as a systems problem, not a
 prompting problem. My instinct when something breaks is to add a test that
 reproduces it and a guardrail that prevents it — the energy-clamping fix, the
 ghost-genre confidence cap, and the JSON-fallback path in reflect_and_refine
-all came from this. I also care about observability: every Claude call is
+all came from this. I also care about observability: every Gemini call is
 logged as a JSON line, the planning step surfaces its own reasoning, and
 confidence scores make the system's uncertainty visible to the user rather
 than hiding it. What this project says about me as an AI engineer is that I
